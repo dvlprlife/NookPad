@@ -178,6 +178,40 @@ def _parse_active(content: str):
     return header_lines, rows, completed_section
 
 
+def _sync_parent_due_dates(rows):
+    """Set each parent task's due date to the latest due date among its subtasks."""
+    # Build a map of current row numbers (pre-renumber) → row index
+    num_to_row = {r["#"]: r for r in rows if r["#"].isdigit() or r["#"] == ""}
+
+    # Group subtasks by parent number
+    children = {}  # parent_# → [subtask rows]
+    for r in rows:
+        p = r.get("Parent", "")
+        if p:
+            children.setdefault(p, []).append(r)
+
+    today = date_cls.today()
+    for parent_num, subtask_rows in children.items():
+        parent_row = next((r for r in rows if r["#"] == parent_num), None)
+        if parent_row is None:
+            continue
+        dates = []
+        for sr in subtask_rows:
+            try:
+                dates.append(sr["Due Date"])
+            except (KeyError, ValueError):
+                pass
+        if not dates:
+            continue
+        max_due = max(dates)
+        parent_row["Due Date"] = max_due
+        try:
+            due = date_cls.fromisoformat(max_due.split()[0])
+            parent_row["Status"] = "⚠️" if due < today else "&nbsp;"
+        except ValueError:
+            pass
+
+
 def _render_active(header_lines, rows) -> str:
     # Build old-# → new-# map so parent references stay valid after renumber
     num_map = {r["#"]: str(i) for i, r in enumerate(rows, 1) if r["#"].isdigit()}
@@ -332,6 +366,26 @@ def delete_task(task_num: int):
     path.write_text(new_content)
 
 
+def delete_completed_task(task_num: int):
+    """Permanently remove a row from the Completed Tasks section and renumber."""
+    path = BASE / "tasks.md"
+    content = path.read_text()
+    split_marker = "## Completed Tasks"
+    if split_marker not in content:
+        return
+    active_part, comp_part = content.split(split_marker, 1)
+    comp_rows = parse_md_table(comp_part)
+    kept = [r for r in comp_rows if not (r.get("#", "").isdigit() and int(r["#"]) == task_num)]
+    if len(kept) == len(comp_rows):
+        return  # nothing removed
+    # Rebuild completed section with renumbered rows
+    header = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Date Completed** |\n|---|---|---|---|---|---|---|\n"
+    rows_text = ""
+    for i, r in enumerate(kept, 1):
+        rows_text += f"| {i} | {r.get('Status','✅')} | {r.get('Priority','')} | {r.get('Due Date','')} | {r.get('Task','')} | {r.get('Notes','')} | {r.get('Date Completed','')} |\n"
+    path.write_text(active_part + header + rows_text)
+
+
 def edit_task(task_num: int, due_date: str, task: str, notes: str, priority: str):
     """Update a task's fields in-place, re-sort, and save."""
     if priority not in VALID_PRIORITIES:
@@ -351,6 +405,7 @@ def edit_task(task_num: int, due_date: str, task: str, notes: str, priority: str
             r["Notes"] = notes
             r["Priority"] = priority
             break
+    _sync_parent_due_dates(rows)
     rows.sort(key=lambda r: (r["Due Date"], PRIORITY_ORDER.get(r["Priority"], 99)))
     new_content = _render_active(header_lines, rows)
     if completed_section:
@@ -393,6 +448,7 @@ def add_task(due_date: str, task: str, notes: str, priority: str = "Medium", par
         parent = ""
 
     rows.append({"#": "", "Status": status, "Priority": priority, "Due Date": due_date, "Task": task, "Notes": notes, "Parent": parent})
+    _sync_parent_due_dates(rows)
     rows.sort(key=lambda r: (r["Due Date"], PRIORITY_ORDER.get(r["Priority"], 99)))
 
     new_content = _render_active(header_lines, rows)
@@ -719,11 +775,11 @@ def ideas_html():
 
 
 def cheatsheet_links():
-    links = ""
+    links = '<a href="/completed" class="nav-link">Completed Tasks</a>'
     for path in sorted(CHEATSHEETS_DIR.glob("*.md")):
         label = path.stem.replace("-cheatsheet", "").replace("-", " ").title()
         links += f'<a href="/cheatsheet/{path.name}" class="nav-link">{label}</a>'
-    return f'<nav class="cheatsheets">{links}</nav>' if links else ""
+    return f'<nav class="cheatsheets">{links}</nav>'
 
 
 # ---------------------------------------------------------------------------
@@ -1167,6 +1223,67 @@ def cheatsheet_page(filename):
 </html>"""
 
 
+def completed_tasks_page():
+    content = read("tasks.md")
+    split_marker = "## Completed Tasks"
+    comp_rows = []
+    if split_marker in content:
+        comp_part = content.split(split_marker, 1)[1]
+        comp_rows = parse_md_table(comp_part)
+
+    def priority_badge(p):
+        cls = {"High": "high", "Medium": "medium", "Low": "low"}.get(p, "")
+        return f'<span class="badge {cls}">{p}</span>'
+
+    rows_html = ""
+    for r in comp_rows:
+        num = html_escape(r.get("#", ""))
+        task_text = html_escape(r.get("Task", ""))
+        notes_text = html_escape(r.get("Notes", ""))
+        priority = r.get("Priority", "Medium")
+        due_raw = r.get("Due Date", "")
+        due = html_escape(due_raw.replace(" 00:00", ""))
+        date_done = html_escape(r.get("Date Completed", ""))
+        rows_html += f"""<tr>
+            <td>✅</td>
+            <td>{priority_badge(priority)}</td>
+            <td class="due">{due}</td>
+            <td>{task_text}</td>
+            <td class="notes">{notes_text}</td>
+            <td class="due">{date_done}</td>
+            <td class="action-cell">
+                <span class="task-hover-actions">
+                    <form method="POST" action="/delete-completed-task" style="display:inline"><input type="hidden" name="num" value="{num}"><button type="submit" class="del-btn" title="Delete permanently" onclick="return confirm('Delete this completed task permanently?')">✕</button></form>
+                </span>
+            </td>
+        </tr>"""
+
+    total = len(comp_rows)
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Completed Tasks</title>
+  <style>{CSS}</style>
+</head>
+<body>
+  <header>
+    <a href="/" class="back">← Dashboard</a>
+  </header>
+  <main style="max-width:900px;margin:0 auto;">
+    <div class="card">
+      <h2>Completed Tasks <span class="count">{total}</span></h2>
+      <table>
+        <thead><tr><th></th><th>Priority</th><th>Due</th><th>Task</th><th>Notes</th><th>Completed</th><th></th></tr></thead>
+        <tbody>{rows_html}</tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>"""
+
+
 # ---------------------------------------------------------------------------
 # HTTP handler
 # ---------------------------------------------------------------------------
@@ -1177,6 +1294,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         if path == "/":
             body = dashboard_page().encode()
+        elif path == "/completed":
+            body = completed_tasks_page().encode()
         elif path.startswith("/cheatsheet/"):
             filename = path[len("/cheatsheet/"):]
             page = cheatsheet_page(filename)
@@ -1262,6 +1381,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             idea_id = get("id")
             if idea_id:
                 delete_idea(idea_id)
+
+        elif path == "/delete-completed-task":
+            num = get("num")
+            if num.isdigit():
+                delete_completed_task(int(num))
+            self.send_response(303)
+            self.send_header("Location", "/completed")
+            self.end_headers()
+            return
 
         else:
             self.send_response(404)

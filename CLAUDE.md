@@ -42,6 +42,7 @@
 - **Status alignment**: Always use `&nbsp;` (not empty) for incomplete tasks to keep columns aligned.
 - **Never delete tasks manually**: Move to Completed Tasks instead of removing rows. The dashboard delete button is the exception — it permanently removes a task after browser confirmation.
 - **Editing a task**: Update the row fields (Due Date, Priority, Task, Notes) in-place, re-sort by due date then priority, and renumber. Re-evaluate Status (overdue or not) based on the new due date.
+- **Parent due date sync**: After adding or editing a sub-task, automatically set the parent task's due date to the latest due date among all its sub-tasks. Re-evaluate the parent's Status after updating.
 - **Notes are optional**: Leave as blank space if none provided, do not use `&nbsp;` in Notes.
 
 ## Ideas (`ideas.md`)
@@ -60,18 +61,25 @@
 - Add new store sections at the end if the store doesn't exist yet.
 - Removing a purchased item deletes the bullet; keep the store heading even if empty.
 
+## User Guide (`DASHBOARD.md`)
+- `DASHBOARD.md` is the user-facing guide for the dashboard.
+- **Always update `DASHBOARD.md` when dashboard functionality is added or changed** — new features, changed behavior, new endpoints, removed features, etc.
+
 ## Dashboard (`server.py`)
 - Serves a read/write dashboard at `http://localhost:6969`.
 - Panels: Tasks, Shopping, Ideas, and Cheatsheet links.
 - Supports adding tasks (`/add-task`), shopping items (`/add-shopping`), and ideas (`/add-idea`) via POST.
 - Supports completing tasks (`/complete-task`), editing tasks (`/edit-task`), deleting tasks (`/delete-task`), and removing purchased shopping items (`/complete-shopping`) via POST.
 - Supports editing ideas (`/edit-idea`) and deleting ideas (`/delete-idea`) via POST.
-- Deleting a task removes it permanently (no archive) — browser confirmation required.
+- Supports permanently deleting completed tasks (`/delete-completed-task`) via POST — browser confirmation required.
+- Deleting an active task removes it permanently (no archive) — browser confirmation required.
 - Editing a task updates fields in-place, re-sorts, and recalculates overdue status.
 - On task rows: ✓ (complete) is always visible; ✎ (edit) and ✕ (delete) appear on hover.
 - On idea rows: ✎ (edit) and ✕ (delete) appear on hover.
 - Dashboard layout: Tasks (top-left), Ideas (bottom-left), Shopping (right, full height).
 - Sub-tasks are displayed indented under their parent task in the Tasks panel.
 - Completing a task via the dashboard follows the same rules as completing one manually (move to Completed Tasks, set Date Completed to today, renumber both tables).
+- Header nav links (left to right): Completed Tasks, then cheatsheet links.
+- Completed Tasks page (`/completed`): lists all completed tasks with priority, due date, task, notes, and date completed. ✕ (delete) appears on hover to permanently remove a row; redirects back to `/completed` after deletion.
 - To install as a service: `sudo cp dashboard.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now dashboard`
 - To restart after changes: `sudo systemctl restart dashboard`
