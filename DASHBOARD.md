@@ -83,11 +83,12 @@ Each panel has a **+ Add** button in the header to add new entries without editi
 
 ### Ideas
 - Click **+ Add** in the Ideas panel to open the form
-- Fields: Idea description, Parent Idea (optional)
+- Fields: Idea description, Notes (optional), Parent Idea (optional)
 - Select a **Parent Idea** to create a sub-idea — it will appear indented (↳) directly below its parent
 - The ID and date are assigned automatically
+- Notes appear below the idea title in a smaller, muted font
 - Hover over any idea to reveal the **✎** (edit) and **✕** (delete) buttons
-- **✎** opens an edit modal pre-filled with the current description
+- **✎** opens an edit modal pre-filled with the current description and notes
 - **✕** permanently deletes the idea and any of its sub-ideas — a confirmation dialog appears first
 
 ## How It Works

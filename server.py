@@ -225,21 +225,28 @@ def _render_active(header_lines, rows) -> str:
 
 
 def _parse_ideas(content: str):
-    """Return list of dicts: id, date, desc, parent."""
+    """Return list of dicts: id, date, desc, parent, notes."""
+    _, blocks = _idea_blocks(content)
     ideas = []
-    for line in content.splitlines():
-        m = re.match(r"^## (\d+) \| (\d{4}-\d{2}-\d{2}) \| (.+?)(?:\s*\|\s*(\d*))?$", line)
+    for heading, body in blocks:
+        m = re.match(r"^## (\d+) \| (\d{4}-\d{2}-\d{2}) \| (.+?)(?:\s*\|\s*(\d*))?$", heading)
         if m:
+            notes = ""
+            for line in body:
+                if line.startswith("notes: "):
+                    notes = line[7:]
+                    break
             ideas.append({
                 "id": m.group(1),
                 "date": m.group(2),
                 "desc": m.group(3).strip(),
                 "parent": m.group(4) or "",
+                "notes": notes,
             })
     return ideas
 
 
-def add_idea(description: str, parent: str = ""):
+def add_idea(description: str, parent: str = "", notes: str = ""):
     """Append a new idea to ideas.md with the next sequential ID."""
     path = BASE / "ideas.md"
     content = path.read_text()
@@ -250,7 +257,10 @@ def add_idea(description: str, parent: str = ""):
     if parent not in valid_ids:
         parent = ""
     today = date_cls.today().isoformat()
-    content = content.rstrip("\n") + f"\n\n## {next_id} | {today} | {description} | {parent}\n"
+    block = f"\n\n## {next_id} | {today} | {description} | {parent}\n"
+    if notes:
+        block += f"notes: {notes}\n"
+    content = content.rstrip("\n") + block
     path.write_text(content)
 
 
@@ -280,8 +290,8 @@ def _reassemble_ideas(preamble, blocks) -> str:
     return "\n\n".join(p for p in parts if p.strip()) + "\n"
 
 
-def edit_idea(idea_id: str, description: str):
-    """Update the description of an existing idea, preserving date, parent, and body."""
+def edit_idea(idea_id: str, description: str, notes: str = ""):
+    """Update the description and notes of an existing idea, preserving date, parent, and sub-points."""
     path = BASE / "ideas.md"
     preamble, blocks = _idea_blocks(path.read_text())
     new_blocks = []
@@ -290,6 +300,10 @@ def edit_idea(idea_id: str, description: str):
         if m and m.group(1) == idea_id:
             parent_seg = m.group(3) or " | "
             heading = f"## {m.group(1)} | {m.group(2)} | {description}{parent_seg}"
+            # Replace existing notes line or remove it; keep all other body lines
+            body = [l for l in body if not l.startswith("notes: ")]
+            if notes:
+                body = [f"notes: {notes}"] + body
         new_blocks.append((heading, body))
     path.write_text(_reassemble_ideas(preamble, new_blocks))
 
@@ -685,16 +699,20 @@ def ideas_html():
         id_ = html_escape(r["id"])
         title = html_escape(r["desc"])
         date = html_escape(r["date"])
+        notes = html_escape(r.get("notes", ""))
         desc_js = r["desc"].replace("'", "\\'").replace('"', '&quot;')
+        notes_js = r.get("notes", "").replace("'", "\\'").replace('"', '&quot;')
         prefix = '<span class="subtask-indent">↳</span>' if indent else ""
         li_cls = ' class="sub-idea"' if indent else ""
+        notes_html = f'<span class="idea-notes">{notes}</span>' if notes else ""
         return (
             f'<li{li_cls}>{prefix}'
             f'<span class="idea-id">#{id_}</span>'
             f'<span class="idea-title">{title}</span>'
+            f'{notes_html}'
             f'<span class="idea-date">{date}</span>'
             f'<span class="idea-actions">'
-            f'<button class="edit-btn" onclick="openEditIdea(\'{id_}\',\'{desc_js}\')" title="Edit idea">✎</button>'
+            f'<button class="edit-btn" onclick="openEditIdea(\'{id_}\',\'{desc_js}\',\'{notes_js}\')" title="Edit idea">✎</button>'
             f'<form method="POST" action="/delete-idea" style="display:inline">'
             f'<input type="hidden" name="id" value="{id_}">'
             f'<button type="submit" class="del-btn" title="Delete idea" onclick="return confirm(\'Delete this idea permanently?\')">✕</button>'
@@ -738,6 +756,9 @@ def ideas_html():
                 <label>Idea
                     <input type="text" name="description" required placeholder="Describe the idea">
                 </label>
+                <label>Notes
+                    <input type="text" name="notes" placeholder="Optional notes">
+                </label>
                 <label>Parent Idea
                     <select name="parent">{parent_opts}</select>
                 </label>
@@ -757,6 +778,9 @@ def ideas_html():
                 <label>Idea
                     <input type="text" name="description" id="edit-idea-desc" required placeholder="Describe the idea">
                 </label>
+                <label>Notes
+                    <input type="text" name="notes" id="edit-idea-notes" placeholder="Optional notes">
+                </label>
                 <div class="modal-actions">
                     <button type="button" class="cancel-btn" onclick="document.getElementById('idea-edit-modal').classList.remove('open')">Cancel</button>
                     <button type="submit" class="submit-btn">Save</button>
@@ -766,9 +790,10 @@ def ideas_html():
     </div>
 
     <script>
-    function openEditIdea(id, desc) {{
+    function openEditIdea(id, desc, notes) {{
         document.getElementById('edit-idea-id').value = id;
         document.getElementById('edit-idea-desc').value = desc;
+        document.getElementById('edit-idea-notes').value = notes || '';
         document.getElementById('idea-edit-modal').classList.add('open');
     }}
     </script>"""
@@ -923,10 +948,11 @@ ul li {
     color: #cbd5e1;
 }
 ul li:last-child { border-bottom: none; }
-ul.ideas li { display: flex; align-items: center; gap: 0.6rem; }
+ul.ideas li { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
 ul.ideas li.sub-idea { background: #182032; padding-left: 0.75rem; }
 .idea-id      { color: #64748b; font-size: 0.7rem; font-family: monospace; flex-shrink: 0; }
 .idea-title   { flex: 1; }
+.idea-notes   { display: block; font-size: 0.72rem; color: #94a3b8; margin-top: 0.15rem; padding-left: 1.6rem; flex-basis: 100%; order: 99; }
 .idea-date    { color: #64748b; font-size: 0.72rem; flex-shrink: 0; }
 .idea-actions { display: flex; gap: 0.3rem; flex-shrink: 0; opacity: 0; transition: opacity 0.15s; }
 ul.ideas li:hover .idea-actions { opacity: 1; }
@@ -1368,14 +1394,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif path == "/add-idea":
             description = get("description")
             parent = get("parent")
+            notes = get("notes")
             if description:
-                add_idea(description, parent)
+                add_idea(description, parent, notes)
 
         elif path == "/edit-idea":
             idea_id = get("id")
             description = get("description")
+            notes = get("notes")
             if idea_id and description:
-                edit_idea(idea_id, description)
+                edit_idea(idea_id, description, notes)
 
         elif path == "/delete-idea":
             idea_id = get("id")

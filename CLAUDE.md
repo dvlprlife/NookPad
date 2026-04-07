@@ -48,11 +48,12 @@
 ## Ideas (`ideas.md`)
 - Format: `## {id} | {YYYY-MM-DD} | {description} | {parent_id}`
 - `{parent_id}` is the ID of the parent idea for sub-ideas, or blank for top-level ideas.
-- Sub-points are optional bullet lists beneath the heading.
+- Notes are stored as a `notes: {text}` line in the block body, before any bullet sub-points.
+- Sub-points are optional bullet lists beneath the heading (after the notes line if present).
 - IDs increment sequentially, never reuse or delete an idea.
 - Date added uses format `YYYY-MM-DD`.
 - Sub-ideas display indented (↳) under their parent in the dashboard.
-- Ideas can be edited (description only; ID and date are preserved) or deleted via the dashboard.
+- Ideas can be edited (description and notes; ID and date are preserved) or deleted via the dashboard.
 - Deleting an idea also deletes its sub-ideas (cascade). IDs of deleted ideas are never reused.
 
 ## Shopping (`shopping.md`)
