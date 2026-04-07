@@ -1,0 +1,12 @@
+[Unit]
+Description=Tasklist Dashboard
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /home/brad/documents/vibe-coding/tasklist/server.py
+WorkingDirectory=/home/brad/documents/vibe-coding/tasklist
+Restart=always
+User=brad
+
+[Install]
+WantedBy=multi-user.target
