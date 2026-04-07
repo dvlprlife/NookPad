@@ -64,10 +64,17 @@ Each panel has a **+ Add** button in the header to add new entries without editi
 - Click **+ Add** in the Tasks panel to open the form
 - Fields: Due Date, Priority (High / Medium / Low), Task, Notes, Parent Task (optional)
 - Select a **Parent Task** to create a sub-task — it will appear indented (↳) directly below its parent in the list
+- When a sub-task is added or edited, the parent task's due date automatically updates to the furthest due date among all its sub-tasks
 - Click the **✓** button on any task row to mark it complete — it moves to the Completed Tasks section in `tasks.md` with today's date
 - Hover over any task row to reveal the **✎** (edit) and **✕** (delete) buttons
 - **✎** opens an edit modal pre-filled with the task's due date, priority, name, and notes
 - **✕** permanently deletes the task — a confirmation dialog appears first
+
+### Completed Tasks
+- Click the **Completed Tasks** link in the header (left of the cheatsheet links) to open the completed tasks page
+- Lists all completed tasks with their priority, original due date, notes, and date completed
+- Hover over any row to reveal the **✕** (delete) button
+- **✕** permanently removes the completed task — a confirmation dialog appears first
 
 ### Shopping
 - Click **+ Add** in the Shopping panel to open the form
