@@ -977,8 +977,8 @@ td {
 tr:last-child td { border-bottom: none; }
 tr.overdue td { color: #fca5a5; }
 tr.overdue td:first-child { font-size: 1rem; }
-tr.due-today td { color: #fde68a; }
-tr.due-today .due { color: #fbbf24; font-weight: 600; }
+tr.due-today td { background: #1e293b; }
+tr.due-today .due { color: #e2e8f0; font-weight: 600;}
 td:first-child { color: #94a3b8; font-size: 0.9rem; }
 .due { color: #cbd5e1; white-space: nowrap; font-size: 0.8rem; }
 tr.overdue .due { color: #fca5a5; }
@@ -990,9 +990,9 @@ tr.overdue .due { color: #fca5a5; }
     font-weight: 700;
     white-space: nowrap;
 }
-.badge.high   { background: #7f1d1d; color: #fecaca; }
-.badge.medium { background: #7c2d12; color: #fed7aa; }
-.badge.low    { background: #1e3a5f; color: #bae6fd; }
+.badge.high   { background: #7f1d1d; color: #fca5a5; }
+.badge.medium { background: #78350f; color: #fcd34d; }
+.badge.low    { background: #14532d; color: #86efac; }
 ul { list-style: none; }
 ul li {
     padding: 0.45rem 0;
