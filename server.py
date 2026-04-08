@@ -492,8 +492,16 @@ def parse_md_table(text):
 def tasks_html():
     _, active, _ = _parse_active(read("tasks.md"))
 
+    today_str = date_cls.today().isoformat()
+
     def row_class(r):
-        return "overdue" if "⚠️" in r.get("Status", "") else ""
+        if "⚠️" in r.get("Status", ""):
+            return "overdue"
+        due_raw = r.get("Due Date", "")
+        due_date = due_raw.split()[0] if due_raw else ""
+        if due_date == today_str:
+            return "due-today"
+        return ""
 
     def priority_badge(p):
         cls = {"High": "high", "Medium": "medium", "Low": "low"}.get(p, "")
@@ -548,8 +556,6 @@ def tasks_html():
     total = len(active)
     overdue_count = sum(1 for r in active if "⚠️" in r.get("Status", ""))
     badge_extra = f' <span class="overdue-badge">{overdue_count} overdue</span>' if overdue_count else ""
-    today_val = date_cls.today().isoformat()
-
     # Parent selector options
     parent_opts = '<option value="">None (top-level task)</option>'
     for r in active:
@@ -572,7 +578,7 @@ def tasks_html():
             <h3>Add Task</h3>
             <form method="POST" action="/add-task">
                 <label>Due Date
-                    <input type="date" name="due_date" required value="{today_val}">
+                    <input type="date" name="due_date" required value="{today_str}">
                 </label>
                 <label>Priority
                     <select name="priority">
@@ -926,6 +932,8 @@ td {
 tr:last-child td { border-bottom: none; }
 tr.overdue td { color: #fca5a5; }
 tr.overdue td:first-child { font-size: 1rem; }
+tr.due-today td { color: #fde68a; }
+tr.due-today .due { color: #fbbf24; font-weight: 600; }
 td:first-child { color: #94a3b8; font-size: 0.9rem; }
 .due { color: #cbd5e1; white-space: nowrap; font-size: 0.8rem; }
 tr.overdue .due { color: #fca5a5; }
