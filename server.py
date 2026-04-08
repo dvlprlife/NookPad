@@ -380,6 +380,51 @@ def delete_task(task_num: int):
     path.write_text(new_content)
 
 
+def reopen_completed_task(task_num: int):
+    """Move a completed task back to the active list and remove it from Completed Tasks."""
+    path = BASE / "tasks.md"
+    content = path.read_text()
+    split_marker = "## Completed Tasks"
+    if split_marker not in content:
+        return
+    active_part, comp_part = content.split(split_marker, 1)
+    comp_rows = parse_md_table(comp_part)
+    found = next((r for r in comp_rows if r.get("#", "").isdigit() and int(r["#"]) == task_num), None)
+    if found is None:
+        return
+    kept = [r for r in comp_rows if r is not found]
+
+    # Rebuild completed section
+    header = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Date Completed** |\n|---|---|---|---|---|---|---|\n"
+    rows_text = ""
+    for i, r in enumerate(kept, 1):
+        rows_text += f"| {i} | {r.get('Status','✅')} | {r.get('Priority','')} | {r.get('Due Date','')} | {r.get('Task','')} | {r.get('Notes','')} | {r.get('Date Completed','')} |\n"
+    new_completed = header + rows_text
+
+    # Re-add to active list
+    header_lines, rows, _ = _parse_active(active_part)
+    today = date_cls.today()
+    due_raw = found.get("Due Date", "")
+    try:
+        due_date = date_cls.fromisoformat(due_raw.split()[0]) if due_raw else None
+        status = "⚠️" if due_date and due_date < today else "&nbsp;"
+    except ValueError:
+        status = "&nbsp;"
+    new_row = {
+        "#": str(len(rows) + 1),
+        "Status": status,
+        "Priority": found.get("Priority", "Medium"),
+        "Due Date": due_raw,
+        "Task": found.get("Task", ""),
+        "Notes": found.get("Notes", ""),
+        "Parent": "",
+    }
+    rows.append(new_row)
+    rows.sort(key=lambda r: (r["Due Date"], PRIORITY_ORDER.get(r["Priority"], 99)))
+    new_active = _render_active(header_lines, rows)
+    path.write_text(new_active + "\n" + new_completed)
+
+
 def delete_completed_task(task_num: int):
     """Permanently remove a row from the Completed Tasks section and renumber."""
     path = BASE / "tasks.md"
@@ -1070,7 +1115,7 @@ ul.ideas li:hover .idea-actions { opacity: 1; }
 .submit-btn:hover { background: #1d4ed8; }
 
 /* ── Done / remove buttons ── */
-.done-btn, .del-btn {
+.done-btn, .del-btn, .reopen-btn {
     background: transparent;
     border: 1px solid #334155;
     border-radius: 4px;
@@ -1083,6 +1128,7 @@ ul.ideas li:hover .idea-actions { opacity: 1; }
 }
 .done-btn:hover { background: #166534; border-color: #16a34a; color: #86efac; }
 .del-btn:hover { background: #7f1d1d; border-color: #dc2626; color: #fca5a5; }
+.reopen-btn:hover { background: #1e3a5f; border-color: #3b82f6; color: #93c5fd; }
 .action-cell { width: 1px; white-space: nowrap; padding-right: 0.25rem; vertical-align: middle; }
 .task-hover-actions { display: inline-flex; gap: 0.3rem; opacity: 0; transition: opacity 0.15s; vertical-align: middle; }
 tr:hover .task-hover-actions { opacity: 1; }
@@ -1287,6 +1333,7 @@ def completed_tasks_page():
             <td class="due">{date_done}</td>
             <td class="action-cell">
                 <span class="task-hover-actions">
+                    <form method="POST" action="/reopen-completed-task" style="display:inline"><input type="hidden" name="num" value="{num}"><button type="submit" class="reopen-btn" title="Reopen task">↩</button></form>
                     <form method="POST" action="/delete-completed-task" style="display:inline"><input type="hidden" name="num" value="{num}"><button type="submit" class="del-btn" title="Delete permanently" onclick="return confirm('Delete this completed task permanently?')">✕</button></form>
                 </span>
             </td>
@@ -1417,6 +1464,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             idea_id = get("id")
             if idea_id:
                 delete_idea(idea_id)
+
+        elif path == "/reopen-completed-task":
+            num = get("num")
+            if num.isdigit():
+                reopen_completed_task(int(num))
+            self.send_response(303)
+            self.send_header("Location", "/completed")
+            self.end_headers()
+            return
 
         elif path == "/delete-completed-task":
             num = get("num")
