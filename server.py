@@ -13,6 +13,27 @@ CHEATSHEETS_DIR = Path(__file__).parent / "cheatsheets"
 PORT = 6969
 
 
+_FILE_DEFAULTS = {
+    "tasks.md": (
+        "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** |\n"
+        "|-------|------------|--------------|--------------|----------|-----------|--------|\n"
+        "\n## Completed Tasks\n\n"
+        "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **Date Completed** |\n"
+        "|-------|------------|--------------|--------------|----------|-----------|--------|--------------------|\n"
+    ),
+    "ideas.md": "# Ideas\n",
+    "shopping.md": "# Shopping\n",
+}
+
+
+def _ensure_files():
+    BASE.mkdir(parents=True, exist_ok=True)
+    for name, default in _FILE_DEFAULTS.items():
+        p = BASE / name
+        if not p.exists():
+            p.write_text(default)
+
+
 def read(name):
     return (BASE / name).read_text()
 
@@ -1497,6 +1518,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         pass
 
 
+_ensure_files()
 socketserver.TCPServer.allow_reuse_address = True
 with socketserver.TCPServer(("", PORT), Handler) as s:
     print(f"Dashboard → http://localhost:{PORT}")
