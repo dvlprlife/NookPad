@@ -756,9 +756,10 @@ def ideas_html():
         prefix = '<span class="subtask-indent">↳</span>' if indent else ""
         li_cls = ' class="sub-idea"' if indent else ""
         notes_html = f'<span class="idea-notes">{notes}</span>' if notes else ""
+        id_html = "" if indent else f'<span class="idea-id">#{id_}</span>'
         return (
             f'<li{li_cls}>{prefix}'
-            f'<span class="idea-id">#{id_}</span>'
+            f'{id_html}'
             f'<span class="idea-title">{title}</span>'
             f'{notes_html}'
             f'<span class="idea-date">{date}</span>'
