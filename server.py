@@ -379,12 +379,20 @@ def complete_task(task_num: int):
     new_content = _render_active(header_lines, remaining)
 
     if not completed_section:
-        completed_section = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Date Completed** |\n|---|---|---|---|---|---|---|\n"
+        completed_section = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **Date Completed** |\n|---|---|---|---|---|---|---|---|\n"
+
+    # Resolve parent description for sub-tasks
+    parent_desc = ""
+    if found.get("Parent", "").strip():
+        parent_num = found["Parent"].strip()
+        parent_row = next((r for r in rows if r["#"] == parent_num), None)
+        if parent_row:
+            parent_desc = parent_row["Task"]
 
     existing_comp = parse_md_table(completed_section.split("## Completed Tasks", 1)[1])
     next_num = len(existing_comp) + 1
     today = date_cls.today().isoformat()
-    new_comp_row = f"| {next_num} | ✅ | {found['Priority']} | {found['Due Date']} | {found['Task']} | {found['Notes']} | {today} |"
+    new_comp_row = f"| {next_num} | ✅ | {found['Priority']} | {found['Due Date']} | {found['Task']} | {found['Notes']} | {parent_desc} | {today} |"
     completed_section = completed_section.rstrip("\n") + "\n" + new_comp_row + "\n"
 
     path.write_text(new_content + "\n" + completed_section)
@@ -416,10 +424,10 @@ def reopen_completed_task(task_num: int):
     kept = [r for r in comp_rows if r is not found]
 
     # Rebuild completed section
-    header = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Date Completed** |\n|---|---|---|---|---|---|---|\n"
+    header = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **Date Completed** |\n|---|---|---|---|---|---|---|---|\n"
     rows_text = ""
     for i, r in enumerate(kept, 1):
-        rows_text += f"| {i} | {r.get('Status','✅')} | {r.get('Priority','')} | {r.get('Due Date','')} | {r.get('Task','')} | {r.get('Notes','')} | {r.get('Date Completed','')} |\n"
+        rows_text += f"| {i} | {r.get('Status','✅')} | {r.get('Priority','')} | {r.get('Due Date','')} | {r.get('Task','')} | {r.get('Notes','')} | {r.get('Parent','')} | {r.get('Date Completed','')} |\n"
     new_completed = header + rows_text
 
     # Re-add to active list
@@ -459,10 +467,10 @@ def delete_completed_task(task_num: int):
     if len(kept) == len(comp_rows):
         return  # nothing removed
     # Rebuild completed section with renumbered rows
-    header = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Date Completed** |\n|---|---|---|---|---|---|---|\n"
+    header = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **Date Completed** |\n|---|---|---|---|---|---|---|---|\n"
     rows_text = ""
     for i, r in enumerate(kept, 1):
-        rows_text += f"| {i} | {r.get('Status','✅')} | {r.get('Priority','')} | {r.get('Due Date','')} | {r.get('Task','')} | {r.get('Notes','')} | {r.get('Date Completed','')} |\n"
+        rows_text += f"| {i} | {r.get('Status','✅')} | {r.get('Priority','')} | {r.get('Due Date','')} | {r.get('Task','')} | {r.get('Notes','')} | {r.get('Parent','')} | {r.get('Date Completed','')} |\n"
     path.write_text(active_part + header + rows_text)
 
 
@@ -473,8 +481,10 @@ def edit_task(task_num: int, due_date: str, task: str, notes: str, priority: str
     path = BASE / "tasks.md"
     header_lines, rows, completed_section = _parse_active(path.read_text())
     today = date_cls.today()
+    old_task_desc = None
     for r in rows:
         if r["#"].isdigit() and int(r["#"]) == task_num:
+            old_task_desc = r["Task"]
             try:
                 due = date_cls.fromisoformat(due_date.split()[0])
                 r["Status"] = "⚠️" if due < today else "&nbsp;"
@@ -488,6 +498,19 @@ def edit_task(task_num: int, due_date: str, task: str, notes: str, priority: str
     _sync_parent_due_dates(rows)
     rows.sort(key=lambda r: (r["Due Date"], PRIORITY_ORDER.get(r["Priority"], 99)))
     new_content = _render_active(header_lines, rows)
+
+    # Sync parent description in completed tasks if the task name changed
+    if completed_section and old_task_desc is not None and old_task_desc != task:
+        comp_rows = parse_md_table(completed_section.split("## Completed Tasks", 1)[1])
+        for cr in comp_rows:
+            if cr.get("Parent", "").strip() == old_task_desc:
+                cr["Parent"] = task
+        header = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **Date Completed** |\n|---|---|---|---|---|---|---|---|\n"
+        rows_text = ""
+        for i, cr in enumerate(comp_rows, 1):
+            rows_text += f"| {i} | {cr.get('Status','✅')} | {cr.get('Priority','')} | {cr.get('Due Date','')} | {cr.get('Task','')} | {cr.get('Notes','')} | {cr.get('Parent','')} | {cr.get('Date Completed','')} |\n"
+        completed_section = header + rows_text
+
     if completed_section:
         new_content += "\n" + completed_section
     path.write_text(new_content)
@@ -1340,7 +1363,9 @@ def completed_tasks_page():
     rows_html = ""
     for r in comp_rows:
         num = html_escape(r.get("#", ""))
+        parent_desc = r.get("Parent", "").strip()
         task_text = html_escape(r.get("Task", ""))
+        task_display = f'<span style="padding-left:1.2em">↳ {task_text}</span>' if parent_desc else task_text
         notes_text = html_escape(r.get("Notes", ""))
         priority = r.get("Priority", "Medium")
         due_raw = r.get("Due Date", "")
@@ -1350,7 +1375,7 @@ def completed_tasks_page():
             <td>✅</td>
             <td>{priority_badge(priority)}</td>
             <td class="due">{due}</td>
-            <td>{task_text}</td>
+            <td>{task_display}</td>
             <td class="notes">{notes_text}</td>
             <td class="due">{date_done}</td>
             <td class="action-cell">
