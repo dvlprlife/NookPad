@@ -13,7 +13,7 @@
 |--------|-------------|
 | `#` | Display number, renumbered sequentially after any sort |
 | `Status` | `✅` when complete, `⚠️` when overdue (due date has passed), `&nbsp;` when incomplete |
-| `Priority` | `High`, `Medium`, or `Low` |
+| `Priority` | `High`, `Medium`, `Low`, or `None`. `None` displays as blank on the dashboard |
 | `Due Date` | Format: `YYYY-MM-DD HH:MM` (24h). Default time is `00:00` if none given |
 | `Task` | Short description of the task |
 | `Notes` | Optional context or details |
@@ -43,7 +43,7 @@
 - **Status alignment**: Always use `&nbsp;` (not empty) for incomplete tasks to keep columns aligned.
 - **Never delete tasks manually**: Move to Completed Tasks instead of removing rows. The dashboard delete button is the exception — it permanently removes a task after browser confirmation.
 - **Editing a task**: Update the row fields (Due Date, Priority, Task, Notes) in-place, re-sort by due date then priority, and renumber. Re-evaluate Status (overdue or not) based on the new due date.
-- **Parent due date sync**: After adding or editing a sub-task, automatically set the parent task's due date to the latest due date among all its sub-tasks. Re-evaluate the parent's Status after updating.
+- **Parent due date sync**: After adding or editing a sub-task, automatically set the parent task's due date to the nearest (earliest) due date among all its sub-tasks. Re-evaluate the parent's Status after updating.
 - **Notes are optional**: Leave as blank space if none provided, do not use `&nbsp;` in Notes.
 
 ## Ideas (`ideas.md`)

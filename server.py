@@ -140,8 +140,8 @@ def md_to_html(text):
 # Task writer
 # ---------------------------------------------------------------------------
 
-PRIORITY_ORDER = {"High": 0, "Medium": 1, "Low": 2}
-VALID_PRIORITIES = {"High", "Medium", "Low"}
+PRIORITY_ORDER = {"High": 0, "Medium": 1, "Low": 2, "None": 3}
+VALID_PRIORITIES = {"High", "Medium", "Low", "None"}
 
 
 def html_escape(text: str) -> str:
@@ -219,7 +219,7 @@ def _next_task_id(rows, completed_section: str) -> int:
 
 
 def _sync_parent_due_dates(rows):
-    """Set each parent task's due date to the latest due date among its subtasks."""
+    """Set each parent task's due date to the nearest (earliest) due date among its subtasks."""
     id_to_row = {r["ID"]: r for r in rows if r.get("ID")}
 
     # Group subtasks by parent ID
@@ -242,10 +242,10 @@ def _sync_parent_due_dates(rows):
                 pass
         if not dates:
             continue
-        max_due = max(dates)
-        parent_row["Due Date"] = max_due
+        nearest_due = min(dates)
+        parent_row["Due Date"] = nearest_due
         try:
-            due = date_cls.fromisoformat(max_due.split()[0])
+            due = date_cls.fromisoformat(nearest_due.split()[0])
             parent_row["Status"] = "⚠️" if due < today else "&nbsp;"
         except ValueError:
             pass
@@ -612,10 +612,12 @@ def tasks_html():
         return ""
 
     def priority_badge(p):
+        if not p or p == "None":
+            return ""
         cls = {"High": "high", "Medium": "medium", "Low": "low"}.get(p, "")
         return f'<span class="badge {cls}">{p}</span>'
 
-    def make_row(r, indent=False):
+    def make_row(r, indent=False, is_parent=False):
         cls = row_class(r)
         icon = "⚠️" if cls == "overdue" else "·"
         due_raw = r.get("Due Date", "")
@@ -629,10 +631,16 @@ def tasks_html():
         notes_js = r.get("Notes", "").replace("\\", "\\\\").replace("'", "\\'").replace('"', '&quot;').replace("`", "\\`")
         parent_id_js = html_escape(r.get("Parent", ""))
         indent_prefix = '<span class="subtask-indent">↳</span>' if indent else ""
-        row_cls = f"{cls} subtask" if indent else cls
+        priority_cell = "" if is_parent else priority_badge(priority)
+        classes = [cls]
+        if indent:
+            classes.append("subtask")
+        if is_parent:
+            classes.append("parent-task")
+        row_cls = " ".join(c for c in classes if c)
         return f"""<tr class="{row_cls}">
             <td>{icon}</td>
-            <td>{priority_badge(priority)}</td>
+            <td>{priority_cell}</td>
             <td class="due">{due}</td>
             <td>{indent_prefix}{task_text}</td>
             <td class="notes">{notes_text}</td>
@@ -656,9 +664,11 @@ def tasks_html():
         else:
             top_level.append(r)
 
+    parent_ids = set(sub_of.keys())
     rows = ""
     for r in top_level:
-        rows += make_row(r)
+        is_parent = r.get("ID", "") in parent_ids
+        rows += make_row(r, is_parent=is_parent)
         for child in sub_of.get(r.get("ID", ""), []):
             rows += make_row(child, indent=True)
 
@@ -695,6 +705,7 @@ def tasks_html():
                         <option value="High">High</option>
                         <option value="Medium" selected>Medium</option>
                         <option value="Low">Low</option>
+                        <option value="None">None</option>
                     </select>
                 </label>
                 <label>Task
@@ -727,6 +738,7 @@ def tasks_html():
                         <option value="High">High</option>
                         <option value="Medium">Medium</option>
                         <option value="Low">Low</option>
+                        <option value="None">None</option>
                     </select>
                 </label>
                 <label>Task
@@ -1205,6 +1217,9 @@ tr:hover .task-hover-actions { opacity: 1; }
 tr.subtask td { background: #182032; }
 tr.subtask td:first-child { color: #64748b; }
 .subtask-indent { color: #475569; margin-right: 0.35rem; font-size: 0.8rem; }
+tr.parent-task td { background: #141c2b; color: #94a3b8; }
+tr.parent-task td:first-child { color: #475569; }
+tr.parent-task .due { color: #64748b; }
 .shop-item { flex: 1; }
 .card ul li { display: flex; align-items: center; gap: 0.5rem; }
 
@@ -1382,6 +1397,8 @@ def completed_tasks_page():
         comp_rows = parse_md_table(comp_part)
 
     def priority_badge(p):
+        if not p or p == "None":
+            return ""
         cls = {"High": "high", "Medium": "medium", "Low": "low"}.get(p, "")
         return f'<span class="badge {cls}">{p}</span>'
 
