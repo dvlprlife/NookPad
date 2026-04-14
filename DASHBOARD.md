@@ -66,9 +66,11 @@ Each panel has a **+ Add** button in the header to add new entries without editi
 - Select a **Parent Task** to create a sub-task — it will appear indented (↳) directly below its parent in the list
 - When a sub-task is added or edited, the parent task's due date automatically updates to the furthest due date among all its sub-tasks
 - Click the **✓** button on any task row to mark it complete — it moves to the Completed Tasks section in `tasks.md` with today's date
+- Completing a **sub-task** also automatically completes its parent task (if the parent is still in the active list)
+- Sub-tasks appear indented (↳) under their parent on the Completed Tasks page as well
 - Hover over any task row to reveal the **✎** (edit) and **✕** (delete) buttons
-- **✎** opens an edit modal pre-filled with the task's due date, priority, name, and notes
-- **✕** permanently deletes the task — a confirmation dialog appears first
+- **✎** opens an edit modal pre-filled with the task's due date, priority, name, notes, and parent task
+- **✕** permanently deletes the task — a confirmation dialog appears first. If a parent task is deleted while sub-tasks exist, those sub-tasks remain but lose their parent relationship
 
 ### Completed Tasks
 - Click the **Completed Tasks** link in the header (left of the cheatsheet links) to open the completed tasks page
