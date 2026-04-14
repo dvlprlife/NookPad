@@ -11,32 +11,33 @@
 ## Table Structure
 | **Column** | **Description** |
 |--------|-------------|
-| `#` | Unique task number, increment sequentially |
+| `#` | Display number, renumbered sequentially after any sort |
 | `Status` | `✅` when complete, `⚠️` when overdue (due date has passed), `&nbsp;` when incomplete |
 | `Priority` | `High`, `Medium`, or `Low` |
 | `Due Date` | Format: `YYYY-MM-DD HH:MM` (24h). Default time is `00:00` if none given |
 | `Task` | Short description of the task |
 | `Notes` | Optional context or details |
-| `Parent` | Task `#` of the parent task if this is a sub-task; blank for top-level tasks |
+| `Parent` | Internal `ID` of the parent task if this is a sub-task; blank for top-level tasks |
+| `ID` | Permanent internal identifier. Assigned at creation, never changes, never reused |
 
 ## Formatting
 - Column headings must be **bold** using `**heading**` syntax.
 - Tasks are sorted by due date, then priority (High → Medium → Low) within the same date.
-- Renumber `#` sequentially after any sort.
-- When renumbering, update any `Parent` column values to match the new `#` of the referenced task.
+- Renumber `#` sequentially after any sort. `Parent` and `ID` values are never renumbered.
 
 ## Column Order
-`#` | `Status` | `Priority` | `Due Date` | `Task` | `Notes` | `Parent`
+`#` | `Status` | `Priority` | `Due Date` | `Task` | `Notes` | `Parent` | `ID`
 
 ## Sub-tasks
-- A sub-task has its parent's task `#` in the `Parent` column.
+- A sub-task has its parent's `ID` in the `Parent` column.
 - In the dashboard, sub-tasks are displayed indented (↳) immediately below their parent task.
 - Sub-tasks are otherwise treated like any other task (same sorting, completion, deletion rules).
 
 ## Rules
-- **Adding a task**: Append a new row, increment `#`, set Status to `&nbsp;`, assign a Priority, use `00:00` if no time is specified.
-- **Completing a task**: Remove the row from the active task list and move it to the **Completed Tasks** section at the bottom of `tasks.md`, setting Status to `✅` and Date Completed to today's date (`YYYY-MM-DD`). Renumber both tables sequentially after the move.
-- **Completed Tasks section**: A separate table at the bottom of `tasks.md` under a `## Completed Tasks` heading. Same column structure as the active task list, plus an additional `Date Completed` column (`YYYY-MM-DD`) at the end. Numbers are independent of the active list (start at 1, increment sequentially).
+- **Adding a task**: Append a new row, increment `#`, assign the next `ID` (max across all active + completed tasks + 1), set Status to `&nbsp;`, assign a Priority, use `00:00` if no time is specified.
+- **Completing a task**: Remove the row from the active task list and move it to the **Completed Tasks** section at the bottom of `tasks.md`, setting Status to `✅` and Date Completed to today's date (`YYYY-MM-DD`). Renumber both tables sequentially after the move. The task's `ID` is preserved.
+- **Completing a sub-task**: When completing a sub-task, if its parent is still in the active list, also move the parent to the Completed Tasks section at the same time.
+- **Completed Tasks section**: A separate table at the bottom of `tasks.md` under a `## Completed Tasks` heading. Same column structure as the active task list, plus an additional `Date Completed` column (`YYYY-MM-DD`) at the end. Numbers are independent of the active list (start at 1, increment sequentially). `ID` and `Parent` values are preserved.
 - **Due date format**: Always `YYYY-MM-DD HH:MM` in 24-hour format.
 - **Overdue tasks**: Use `⚠️` in the Status column for incomplete tasks whose due date has passed (strictly before today's date). Tasks due today are not overdue. Always update overdue statuses automatically without asking the user.
 - **Status alignment**: Always use `&nbsp;` (not empty) for incomplete tasks to keep columns aligned.
