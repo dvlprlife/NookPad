@@ -15,11 +15,11 @@ PORT = 6969
 
 _FILE_DEFAULTS = {
     "tasks.md": (
-        "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** |\n"
-        "|-------|------------|--------------|--------------|----------|-----------|--------|\n"
+        "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **ID** |\n"
+        "|-------|------------|--------------|--------------|----------|-----------|--------|----|\n"
         "\n## Completed Tasks\n\n"
-        "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **Date Completed** |\n"
-        "|-------|------------|--------------|--------------|----------|-----------|--------|--------------------|\n"
+        "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **ID** | **Date Completed** |\n"
+        "|-------|------------|--------------|--------------|----------|-----------|--------|----|-----------|\n"
     ),
     "ideas.md": "# Ideas\n",
     "shopping.md": "# Shopping\n",
@@ -152,14 +152,14 @@ def html_escape(text: str) -> str:
             .replace('"', "&quot;"))
 
 
-COL_HEADER = "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** |"
-COL_SEP    = "|---|--------|----------|----------|------|-------|---|"
+COL_HEADER = "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **ID** |"
+COL_SEP    = "|---|--------|----------|----------|------|-------|---|---|"
 
 
 def _parse_active(content: str):
     """Return (header_lines, rows, completed_section).
 
-    rows is a list of dicts: #, Status, Priority, Due Date, Task, Notes, Parent.
+    rows is a list of dicts: #, Status, Priority, Due Date, Task, Notes, Parent, ID.
     completed_section is the raw string from '## Completed Tasks' onward, or ''.
     """
     split_marker = "## Completed Tasks"
@@ -195,25 +195,43 @@ def _parse_active(content: str):
                 "Task": cols[4],
                 "Notes": cols[5],
                 "Parent": cols[6] if len(cols) > 6 else "",
+                "ID": cols[7] if len(cols) > 7 else "",
             })
     return header_lines, rows, completed_section
 
 
+def _next_task_id(rows, completed_section: str) -> int:
+    """Return the next available task ID (max across active + completed + 1)."""
+    ids = []
+    for r in rows:
+        try:
+            ids.append(int(r.get("ID", 0) or 0))
+        except ValueError:
+            pass
+    if completed_section:
+        comp_rows = parse_md_table(completed_section.split("## Completed Tasks", 1)[1])
+        for r in comp_rows:
+            try:
+                ids.append(int(r.get("ID", 0) or 0))
+            except ValueError:
+                pass
+    return max(ids, default=0) + 1
+
+
 def _sync_parent_due_dates(rows):
     """Set each parent task's due date to the latest due date among its subtasks."""
-    # Build a map of current row numbers (pre-renumber) → row index
-    num_to_row = {r["#"]: r for r in rows if r["#"].isdigit() or r["#"] == ""}
+    id_to_row = {r["ID"]: r for r in rows if r.get("ID")}
 
-    # Group subtasks by parent number
-    children = {}  # parent_# → [subtask rows]
+    # Group subtasks by parent ID
+    children = {}  # parent_id → [subtask rows]
     for r in rows:
         p = r.get("Parent", "")
         if p:
             children.setdefault(p, []).append(r)
 
     today = date_cls.today()
-    for parent_num, subtask_rows in children.items():
-        parent_row = next((r for r in rows if r["#"] == parent_num), None)
+    for parent_id, subtask_rows in children.items():
+        parent_row = id_to_row.get(parent_id)
         if parent_row is None:
             continue
         dates = []
@@ -234,13 +252,10 @@ def _sync_parent_due_dates(rows):
 
 
 def _render_active(header_lines, rows) -> str:
-    # Build old-# → new-# map so parent references stay valid after renumber
-    num_map = {r["#"]: str(i) for i, r in enumerate(rows, 1) if r["#"].isdigit()}
     lines = header_lines + [COL_HEADER, COL_SEP]
     for i, r in enumerate(rows, 1):
-        parent = num_map.get(r.get("Parent", ""), r.get("Parent", ""))
         lines.append(
-            f"| {i} | {r['Status']} | {r['Priority']} | {r['Due Date']} | {r['Task']} | {r['Notes']} | {parent} |"
+            f"| {i} | {r['Status']} | {r['Priority']} | {r['Due Date']} | {r['Task']} | {r['Notes']} | {r.get('Parent', '')} | {r.get('ID', '')} |"
         )
     return "\n".join(lines) + "\n"
 
@@ -375,26 +390,37 @@ def complete_task(task_num: int):
     found = next((r for r in rows if r["#"].isdigit() and int(r["#"]) == task_num), None)
     if found is None:
         return
-    remaining = [r for r in rows if r is not found]
+
+    # Find parent in active list (by ID)
+    parent_id = found.get("Parent", "").strip()
+    parent_row = next((r for r in rows if r.get("ID") == parent_id), None) if parent_id else None
+
+    # Remove completed task (and parent if it's being auto-completed) from active
+    to_remove = {id(found)}
+    if parent_row:
+        to_remove.add(id(parent_row))
+    remaining = [r for r in rows if id(r) not in to_remove]
     new_content = _render_active(header_lines, remaining)
 
     if not completed_section:
-        completed_section = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **Date Completed** |\n|---|---|---|---|---|---|---|---|\n"
-
-    # Resolve parent description for sub-tasks
-    parent_desc = ""
-    if found.get("Parent", "").strip():
-        parent_num = found["Parent"].strip()
-        parent_row = next((r for r in rows if r["#"] == parent_num), None)
-        if parent_row:
-            parent_desc = parent_row["Task"]
+        completed_section = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **ID** | **Date Completed** |\n|---|---|---|---|---|---|---|---|---|\n"
 
     existing_comp = parse_md_table(completed_section.split("## Completed Tasks", 1)[1])
-    next_num = len(existing_comp) + 1
     today = date_cls.today().isoformat()
-    new_comp_row = f"| {next_num} | ✅ | {found['Priority']} | {found['Due Date']} | {found['Task']} | {found['Notes']} | {parent_desc} | {today} |"
-    completed_section = completed_section.rstrip("\n") + "\n" + new_comp_row + "\n"
+    next_num = len(existing_comp) + 1
 
+    # Check if parent is already in completed (don't duplicate)
+    parent_already_completed = any(r.get("ID") == parent_id for r in existing_comp) if parent_id else True
+
+    new_rows_text = ""
+    # If parent needs to be auto-completed, add it first so sub-task groups under it
+    if parent_row and not parent_already_completed:
+        new_rows_text += f"| {next_num} | ✅ | {parent_row['Priority']} | {parent_row['Due Date']} | {parent_row['Task']} | {parent_row['Notes']} | {parent_row.get('Parent', '')} | {parent_row.get('ID', '')} | {today} |\n"
+        next_num += 1
+
+    new_rows_text += f"| {next_num} | ✅ | {found['Priority']} | {found['Due Date']} | {found['Task']} | {found['Notes']} | {found.get('Parent', '')} | {found.get('ID', '')} | {today} |\n"
+
+    completed_section = completed_section.rstrip("\n") + "\n" + new_rows_text
     path.write_text(new_content + "\n" + completed_section)
 
 
@@ -424,10 +450,10 @@ def reopen_completed_task(task_num: int):
     kept = [r for r in comp_rows if r is not found]
 
     # Rebuild completed section
-    header = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **Date Completed** |\n|---|---|---|---|---|---|---|---|\n"
+    header = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **ID** | **Date Completed** |\n|---|---|---|---|---|---|---|---|---|\n"
     rows_text = ""
     for i, r in enumerate(kept, 1):
-        rows_text += f"| {i} | {r.get('Status','✅')} | {r.get('Priority','')} | {r.get('Due Date','')} | {r.get('Task','')} | {r.get('Notes','')} | {r.get('Parent','')} | {r.get('Date Completed','')} |\n"
+        rows_text += f"| {i} | {r.get('Status','✅')} | {r.get('Priority','')} | {r.get('Due Date','')} | {r.get('Task','')} | {r.get('Notes','')} | {r.get('Parent','')} | {r.get('ID','')} | {r.get('Date Completed','')} |\n"
     new_completed = header + rows_text
 
     # Re-add to active list
@@ -446,7 +472,8 @@ def reopen_completed_task(task_num: int):
         "Due Date": due_raw,
         "Task": found.get("Task", ""),
         "Notes": found.get("Notes", ""),
-        "Parent": "",
+        "Parent": found.get("Parent", ""),
+        "ID": found.get("ID", ""),
     }
     rows.append(new_row)
     rows.sort(key=lambda r: (r["Due Date"], PRIORITY_ORDER.get(r["Priority"], 99)))
@@ -467,24 +494,27 @@ def delete_completed_task(task_num: int):
     if len(kept) == len(comp_rows):
         return  # nothing removed
     # Rebuild completed section with renumbered rows
-    header = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **Date Completed** |\n|---|---|---|---|---|---|---|---|\n"
+    header = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **ID** | **Date Completed** |\n|---|---|---|---|---|---|---|---|---|\n"
     rows_text = ""
     for i, r in enumerate(kept, 1):
-        rows_text += f"| {i} | {r.get('Status','✅')} | {r.get('Priority','')} | {r.get('Due Date','')} | {r.get('Task','')} | {r.get('Notes','')} | {r.get('Parent','')} | {r.get('Date Completed','')} |\n"
+        rows_text += f"| {i} | {r.get('Status','✅')} | {r.get('Priority','')} | {r.get('Due Date','')} | {r.get('Task','')} | {r.get('Notes','')} | {r.get('Parent','')} | {r.get('ID','')} | {r.get('Date Completed','')} |\n"
     path.write_text(active_part + header + rows_text)
 
 
-def edit_task(task_num: int, due_date: str, task: str, notes: str, priority: str):
+def edit_task(task_num: int, due_date: str, task: str, notes: str, priority: str, parent: str = ""):
     """Update a task's fields in-place, re-sort, and save."""
     if priority not in VALID_PRIORITIES:
         priority = "Medium"
     path = BASE / "tasks.md"
     header_lines, rows, completed_section = _parse_active(path.read_text())
+    # Validate parent ID exists and isn't the task itself
+    valid_ids = {r["ID"] for r in rows if r.get("ID")}
+    editing_id = next((r["ID"] for r in rows if r["#"].isdigit() and int(r["#"]) == task_num), None)
+    if parent not in valid_ids or parent == editing_id:
+        parent = ""
     today = date_cls.today()
-    old_task_desc = None
     for r in rows:
         if r["#"].isdigit() and int(r["#"]) == task_num:
-            old_task_desc = r["Task"]
             try:
                 due = date_cls.fromisoformat(due_date.split()[0])
                 r["Status"] = "⚠️" if due < today else "&nbsp;"
@@ -494,23 +524,11 @@ def edit_task(task_num: int, due_date: str, task: str, notes: str, priority: str
             r["Task"] = task
             r["Notes"] = notes
             r["Priority"] = priority
+            r["Parent"] = parent
             break
     _sync_parent_due_dates(rows)
     rows.sort(key=lambda r: (r["Due Date"], PRIORITY_ORDER.get(r["Priority"], 99)))
     new_content = _render_active(header_lines, rows)
-
-    # Sync parent description in completed tasks if the task name changed
-    if completed_section and old_task_desc is not None and old_task_desc != task:
-        comp_rows = parse_md_table(completed_section.split("## Completed Tasks", 1)[1])
-        for cr in comp_rows:
-            if cr.get("Parent", "").strip() == old_task_desc:
-                cr["Parent"] = task
-        header = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **Date Completed** |\n|---|---|---|---|---|---|---|---|\n"
-        rows_text = ""
-        for i, cr in enumerate(comp_rows, 1):
-            rows_text += f"| {i} | {cr.get('Status','✅')} | {cr.get('Priority','')} | {cr.get('Due Date','')} | {cr.get('Task','')} | {cr.get('Notes','')} | {cr.get('Parent','')} | {cr.get('Date Completed','')} |\n"
-        completed_section = header + rows_text
-
     if completed_section:
         new_content += "\n" + completed_section
     path.write_text(new_content)
@@ -545,12 +563,13 @@ def add_task(due_date: str, task: str, notes: str, priority: str = "Medium", par
     except ValueError:
         status = "&nbsp;"
 
-    # Validate parent refers to an existing task number
-    valid_nums = {r["#"] for r in rows if r["#"].isdigit()}
-    if parent not in valid_nums:
+    # Validate parent refers to an existing task ID
+    valid_ids = {r["ID"] for r in rows if r.get("ID")}
+    if parent not in valid_ids:
         parent = ""
 
-    rows.append({"#": "", "Status": status, "Priority": priority, "Due Date": due_date, "Task": task, "Notes": notes, "Parent": parent})
+    new_id = str(_next_task_id(rows, completed_section))
+    rows.append({"#": "", "Status": status, "Priority": priority, "Due Date": due_date, "Task": task, "Notes": notes, "Parent": parent, "ID": new_id})
     _sync_parent_due_dates(rows)
     rows.sort(key=lambda r: (r["Due Date"], PRIORITY_ORDER.get(r["Priority"], 99)))
 
@@ -608,6 +627,7 @@ def tasks_html():
         priority = r.get("Priority", "Medium")
         task_js = r.get("Task", "").replace("'", "\\'").replace('"', '&quot;')
         notes_js = r.get("Notes", "").replace("'", "\\'").replace('"', '&quot;')
+        parent_id_js = html_escape(r.get("Parent", ""))
         indent_prefix = '<span class="subtask-indent">↳</span>' if indent else ""
         row_cls = f"{cls} subtask" if indent else cls
         return f"""<tr class="{row_cls}">
@@ -619,19 +639,19 @@ def tasks_html():
             <td class="action-cell">
                 <form method="POST" action="/complete-task" style="display:inline"><input type="hidden" name="num" value="{num}"><button type="submit" class="done-btn" title="Mark complete">✓</button></form>
                 <span class="task-hover-actions">
-                    <button type="button" class="edit-btn" title="Edit task" onclick="openEditTask('{num}','{task_js}','{notes_js}','{due_date_val}','{priority}')">✎</button>
+                    <button type="button" class="edit-btn" title="Edit task" onclick="openEditTask('{num}','{task_js}','{notes_js}','{due_date_val}','{priority}','{parent_id_js}')">✎</button>
                     <form method="POST" action="/delete-task" style="display:inline"><input type="hidden" name="num" value="{num}"><button type="submit" class="del-btn" title="Delete task" onclick="return confirm('Delete this task permanently?')">✕</button></form>
                 </span>
             </td>
         </tr>"""
 
     # Group: top-level tasks, each followed immediately by their sub-tasks
-    by_num = {r["#"]: r for r in active}
-    sub_of = {}  # parent_num → [child rows]
+    by_id = {r.get("ID", ""): r for r in active if r.get("ID")}
+    sub_of = {}  # parent_id → [child rows]
     top_level = []
     for r in active:
         p = r.get("Parent", "")
-        if p and p in by_num:
+        if p and p in by_id:
             sub_of.setdefault(p, []).append(r)
         else:
             top_level.append(r)
@@ -639,18 +659,19 @@ def tasks_html():
     rows = ""
     for r in top_level:
         rows += make_row(r)
-        for child in sub_of.get(r["#"], []):
+        for child in sub_of.get(r.get("ID", ""), []):
             rows += make_row(child, indent=True)
 
     total = len(active)
     overdue_count = sum(1 for r in active if "⚠️" in r.get("Status", ""))
     badge_extra = f' <span class="overdue-badge">{overdue_count} overdue</span>' if overdue_count else ""
-    # Parent selector options
+    # Parent selector options (value = internal ID)
     parent_opts = '<option value="">None (top-level task)</option>'
-    for r in active:
+    for r in top_level:
+        task_id = html_escape(r.get("ID", ""))
         num = html_escape(r.get("#", ""))
         label = html_escape(r.get("Task", ""))
-        parent_opts += f'<option value="{num}">#{num} — {label}</option>'
+        parent_opts += f'<option value="{task_id}">#{num} — {label}</option>'
 
     return f"""<section class="card tasks-card">
         <h2>Tasks <span class="count">{total}</span>{badge_extra}
@@ -714,6 +735,9 @@ def tasks_html():
                 <label>Notes
                     <input type="text" name="notes" id="edit-task-notes" placeholder="Optional context">
                 </label>
+                <label>Parent Task
+                    <select name="parent" id="edit-task-parent">{parent_opts}</select>
+                </label>
                 <div class="modal-actions">
                     <button type="button" class="cancel-btn" onclick="document.getElementById('task-edit-modal').classList.remove('open')">Cancel</button>
                     <button type="submit" class="submit-btn">Save</button>
@@ -723,12 +747,13 @@ def tasks_html():
     </div>
 
     <script>
-    function openEditTask(num, task, notes, due, priority) {{
+    function openEditTask(num, task, notes, due, priority, parentId) {{
         document.getElementById('edit-task-num').value = num;
         document.getElementById('edit-task-task').value = task;
         document.getElementById('edit-task-notes').value = notes;
         document.getElementById('edit-task-due').value = due;
         document.getElementById('edit-task-priority').value = priority;
+        document.getElementById('edit-task-parent').value = parentId || '';
         document.getElementById('task-edit-modal').classList.add('open');
     }}
     </script>"""
@@ -1360,18 +1385,17 @@ def completed_tasks_page():
         cls = {"High": "high", "Medium": "medium", "Low": "low"}.get(p, "")
         return f'<span class="badge {cls}">{p}</span>'
 
-    rows_html = ""
-    for r in comp_rows:
+    def make_comp_row(r, indent=False):
         num = html_escape(r.get("#", ""))
-        parent_desc = r.get("Parent", "").strip()
         task_text = html_escape(r.get("Task", ""))
-        task_display = f'<span style="padding-left:1.2em">↳ {task_text}</span>' if parent_desc else task_text
+        task_display = f'<span class="subtask-indent">↳</span>{task_text}' if indent else task_text
         notes_text = html_escape(r.get("Notes", ""))
         priority = r.get("Priority", "Medium")
         due_raw = r.get("Due Date", "")
         due = html_escape(due_raw.replace(" 00:00", ""))
         date_done = html_escape(r.get("Date Completed", ""))
-        rows_html += f"""<tr>
+        row_cls = "subtask" if indent else ""
+        return f"""<tr class="{row_cls}">
             <td>✅</td>
             <td>{priority_badge(priority)}</td>
             <td class="due">{due}</td>
@@ -1385,6 +1409,23 @@ def completed_tasks_page():
                 </span>
             </td>
         </tr>"""
+
+    # Group sub-tasks immediately under their parent (matched by internal ID)
+    by_id = {r.get("ID", ""): r for r in comp_rows if r.get("ID")}
+    sub_of = {}   # parent_id → [child rows]
+    top_level_comp = []
+    for r in comp_rows:
+        p = r.get("Parent", "").strip()
+        if p and p in by_id:
+            sub_of.setdefault(p, []).append(r)
+        else:
+            top_level_comp.append(r)
+
+    rows_html = ""
+    for r in top_level_comp:
+        rows_html += make_comp_row(r)
+        for child in sub_of.get(r.get("ID", ""), []):
+            rows_html += make_comp_row(child, indent=True)
 
     total = len(comp_rows)
     return f"""<!DOCTYPE html>
@@ -1484,8 +1525,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             task = get("task")
             notes = get("notes")
             priority = get("priority", "Medium")
+            parent = get("parent", "")
             if num.isdigit() and due_raw and task:
-                edit_task(int(num), due_raw + " 00:00", task, notes, priority)
+                edit_task(int(num), due_raw + " 00:00", task, notes, priority, parent)
 
         elif path == "/complete-shopping":
             store = get("store")
