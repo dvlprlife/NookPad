@@ -625,8 +625,8 @@ def tasks_html():
         task_text = html_escape(r.get("Task", ""))
         notes_text = html_escape(r.get("Notes", ""))
         priority = r.get("Priority", "Medium")
-        task_js = r.get("Task", "").replace("'", "\\'").replace('"', '&quot;')
-        notes_js = r.get("Notes", "").replace("'", "\\'").replace('"', '&quot;')
+        task_js = r.get("Task", "").replace("\\", "\\\\").replace("'", "\\'").replace('"', '&quot;').replace("`", "\\`")
+        notes_js = r.get("Notes", "").replace("\\", "\\\\").replace("'", "\\'").replace('"', '&quot;').replace("`", "\\`")
         parent_id_js = html_escape(r.get("Parent", ""))
         indent_prefix = '<span class="subtask-indent">↳</span>' if indent else ""
         row_cls = f"{cls} subtask" if indent else cls
@@ -820,8 +820,8 @@ def ideas_html():
         title = html_escape(r["desc"])
         date = html_escape(r["date"])
         notes = html_escape(r.get("notes", ""))
-        desc_js = r["desc"].replace("'", "\\'").replace('"', '&quot;')
-        notes_js = r.get("notes", "").replace("'", "\\'").replace('"', '&quot;')
+        desc_js = r["desc"].replace("\\", "\\\\").replace("'", "\\'").replace('"', '&quot;').replace("`", "\\`")
+        notes_js = r.get("notes", "").replace("\\", "\\\\").replace("'", "\\'").replace('"', '&quot;').replace("`", "\\`")
         prefix = '<span class="subtask-indent">↳</span>' if indent else ""
         li_cls = ' class="sub-idea"' if indent else ""
         notes_html = f'<span class="idea-notes">{notes}</span>' if notes else ""
