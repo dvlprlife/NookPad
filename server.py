@@ -1329,7 +1329,7 @@ def dashboard_page():
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dashboard</title>
-  <style>{CSS}</style>
+  <link rel="stylesheet" href="/style.css">
   <meta http-equiv="refresh" content="30">
 </head>
 <body>
@@ -1360,7 +1360,7 @@ def cheatsheet_page(filename):
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{title}</title>
-  <style>{CSS}</style>
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <header>
@@ -1434,7 +1434,7 @@ def completed_tasks_page():
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Completed Tasks</title>
-  <style>{CSS}</style>
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <header>
@@ -1460,6 +1460,16 @@ def completed_tasks_page():
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split("?")[0]
+
+        if path == "/style.css":
+            body = CSS.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/css; charset=utf-8")
+            self.send_header("Content-Length", len(body))
+            self.send_header("Cache-Control", "max-age=3600")
+            self.end_headers()
+            self.wfile.write(body)
+            return
 
         if path == "/":
             body = dashboard_page().encode()
@@ -1586,7 +1596,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 _ensure_files()
-socketserver.TCPServer.allow_reuse_address = True
-with socketserver.TCPServer(("", PORT), Handler) as s:
+class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+
+with ThreadingTCPServer(("", PORT), Handler) as s:
     print(f"Dashboard → http://localhost:{PORT}")
     s.serve_forever()
