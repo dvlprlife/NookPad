@@ -1,5 +1,13 @@
 # Task List Instructions
 
+## GitHub Workflow
+- **Before starting any change**: Draft the issue title and body, then show it to the user for review and approval before creating it. The issue must be detailed enough to be worked on independently — include what is changing, why, and any relevant context or acceptance criteria.
+- **Create the issue**: Only after the user approves the draft, create it with `gh issue create`.
+- **Create a branch**: Name it `issue-{number}-short-description` off `main`.
+- **Commit changes** to that branch.
+- **When done**: Open a PR with `gh pr create` referencing the issue (e.g. `Closes #123` in the body).
+- Never push directly to `main`.
+
 ## Files
 - `lists/tasks.md` — the active task list
 - `lists/ideas.md` — a running list of ideas
@@ -36,7 +44,6 @@
 ## Rules
 - **Adding a task**: Append a new row, increment `#`, assign the next `ID` (max across all active + completed tasks + 1), set Status to `&nbsp;`, assign a Priority, use `00:00` if no time is specified.
 - **Completing a task**: Remove the row from the active task list and move it to the **Completed Tasks** section at the bottom of `tasks.md`, setting Status to `✅` and Date Completed to today's date (`YYYY-MM-DD`). Renumber both tables sequentially after the move. The task's `ID` is preserved.
-- **Completing a sub-task**: When completing a sub-task, if its parent is still in the active list, also move the parent to the Completed Tasks section at the same time.
 - **Completed Tasks section**: A separate table at the bottom of `tasks.md` under a `## Completed Tasks` heading. Same column structure as the active task list, plus an additional `Date Completed` column (`YYYY-MM-DD`) at the end. Numbers are independent of the active list (start at 1, increment sequentially). `ID` and `Parent` values are preserved.
 - **Due date format**: Always `YYYY-MM-DD HH:MM` in 24-hour format.
 - **Overdue tasks**: Use `⚠️` in the Status column for incomplete tasks whose due date has passed (strictly before today's date). Tasks due today are not overdue. Always update overdue statuses automatically without asking the user.
