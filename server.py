@@ -391,15 +391,7 @@ def complete_task(task_num: int):
     if found is None:
         return
 
-    # Find parent in active list (by ID)
-    parent_id = found.get("Parent", "").strip()
-    parent_row = next((r for r in rows if r.get("ID") == parent_id), None) if parent_id else None
-
-    # Remove completed task (and parent if it's being auto-completed) from active
-    to_remove = {id(found)}
-    if parent_row:
-        to_remove.add(id(parent_row))
-    remaining = [r for r in rows if id(r) not in to_remove]
+    remaining = [r for r in rows if id(r) != id(found)]
     new_content = _render_active(header_lines, remaining)
 
     if not completed_section:
@@ -409,16 +401,7 @@ def complete_task(task_num: int):
     today = date_cls.today().isoformat()
     next_num = len(existing_comp) + 1
 
-    # Check if parent is already in completed (don't duplicate)
-    parent_already_completed = any(r.get("ID") == parent_id for r in existing_comp) if parent_id else True
-
-    new_rows_text = ""
-    # If parent needs to be auto-completed, add it first so sub-task groups under it
-    if parent_row and not parent_already_completed:
-        new_rows_text += f"| {next_num} | ✅ | {parent_row['Priority']} | {parent_row['Due Date']} | {parent_row['Task']} | {parent_row['Notes']} | {parent_row.get('Parent', '')} | {parent_row.get('ID', '')} | {today} |\n"
-        next_num += 1
-
-    new_rows_text += f"| {next_num} | ✅ | {found['Priority']} | {found['Due Date']} | {found['Task']} | {found['Notes']} | {found.get('Parent', '')} | {found.get('ID', '')} | {today} |\n"
+    new_rows_text = f"| {next_num} | ✅ | {found['Priority']} | {found['Due Date']} | {found['Task']} | {found['Notes']} | {found.get('Parent', '')} | {found.get('ID', '')} | {today} |\n"
 
     completed_section = completed_section.rstrip("\n") + "\n" + new_rows_text
     path.write_text(new_content + "\n" + completed_section)
