@@ -25,7 +25,19 @@ For the first eligible issue found:
    gh issue view {number} --repo dvlprlife/vibe-coding
    ```
 
-## Step 3: Prepare the Branch
+## Step 3: Post a Plan Comment
+
+Before making any changes, post a comment on the issue outlining what you plan to do. This gives visibility into the agent's intent before execution.
+
+```
+gh issue comment {number} --repo dvlprlife/vibe-coding --body "## Plan
+
+{bullet list of the specific changes you intend to make, file by file}
+
+Starting work now."
+```
+
+## Step 4: Prepare the Branch
 
 1. Ensure you are on `main` and up to date:
    ```
@@ -37,7 +49,7 @@ For the first eligible issue found:
    git checkout -b issue-{number}-short-description
    ```
 
-## Step 4: Implement the Changes
+## Step 5: Implement the Changes
 
 Read the issue body carefully. It will describe:
 - What is changing and why
@@ -45,7 +57,7 @@ Read the issue body carefully. It will describe:
 
 Make all necessary changes to satisfy the acceptance criteria. Follow all rules in `CLAUDE.md`.
 
-## Step 5: Commit and Push
+## Step 6: Commit and Push
 
 Commit with a message that references the issue:
 ```
@@ -60,7 +72,7 @@ Push the branch:
 git push -u origin issue-{number}-short-description
 ```
 
-## Step 6: Open a PR
+## Step 7: Open a PR
 
 ```
 gh pr create --repo dvlprlife/vibe-coding \
@@ -71,7 +83,14 @@ gh pr create --repo dvlprlife/vibe-coding \
 Closes #{number}"
 ```
 
-## Step 7: Comment on the Issue
+## Step 8: Update Label to In Review
+
+After the PR is opened, update the issue label to reflect it is awaiting human review:
+```
+gh issue edit {number} --repo dvlprlife/vibe-coding --add-label "status: in-review" --remove-label "status: in-progress"
+```
+
+## Step 9: Comment on the Issue
 
 Post a comment linking to the PR so the issue is traceable:
 ```
