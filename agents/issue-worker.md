@@ -100,6 +100,7 @@ gh issue comment {number} --repo dvlprlife/vibe-coding --body "PR opened: {pr_ur
 ## Rules
 
 - Process **one issue at a time** — pick the first result and complete it fully before stopping.
+- **Never create a branch or make any changes without first posting a plan comment on the issue** (Step 3). No exceptions.
 - Always update the label to `status: in-progress` **before** starting work (Step 2).
 - Follow all GitHub workflow rules in `CLAUDE.md` (no direct pushes to `main`, PR required).
 - If you cannot determine how to implement something from the issue body alone, add a comment on the issue explaining what clarification is needed, restore the `status: ready` label, remove `status: in-progress`, and stop.
