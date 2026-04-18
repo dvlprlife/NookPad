@@ -20,6 +20,7 @@ For each label in the list below, check if it exists in the output from Step 1. 
 | `status: in-review` | `#d93f0b` | Issue has an open PR awaiting review | `gh label create "status: in-review" --repo dvlprlife/vibe-coding --color "d93f0b" --description "Issue has an open PR awaiting review"` |
 | `follow up` | `#c5def5` | Needs follow-up after completion | `gh label create "follow up" --repo dvlprlife/vibe-coding --color "c5def5" --description "Needs follow-up after completion"` |
 | `human` | `#b60205` | Requires human attention or intervention | `gh label create "human" --repo dvlprlife/vibe-coding --color "b60205" --description "Requires human attention or intervention"` |
+| `need plan` | `#fbca04` | Issue needs a plan before work can begin | `gh label create "need plan" --repo dvlprlife/vibe-coding --color "fbca04" --description "Issue needs a plan before work can begin"` |
 
 ## Step 3: Report Results
 
