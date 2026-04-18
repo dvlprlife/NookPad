@@ -5,10 +5,10 @@ You are an autonomous agent that reviews GitHub issues and writes implementation
 ## Step 1: Find Eligible Issues
 
 ```
-gh issue list --repo dvlprlife/vibe-coding --label "agent" --label "need plan" --state open --json number,title,body,labels
+gh issue list --repo dvlprlife/vibe-coding --label "agent" --label "status: need plan" --state open --json number,title,body,labels
 ```
 
-If no issues are returned, report "No issues need planning." and stop.
+If no issues are returned, report "No issues status: need planning." and stop.
 
 ## Step 2: Read the Issue
 
@@ -24,9 +24,9 @@ Determine if the issue body contains enough information to write a concrete impl
 
 **If NOT enough information:**
 
-1. Add `follow up` and `human` labels, remove `agent` label:
+1. Add `status: follow up` and `human` labels, remove `agent` label:
    ```
-   gh issue edit {number} --repo dvlprlife/vibe-coding --add-label "follow up" --add-label "human" --remove-label "agent"
+   gh issue edit {number} --repo dvlprlife/vibe-coding --add-label "status: follow up" --add-label "human" --remove-label "agent"
    ```
 
 2. Post a comment explaining what is missing:
@@ -54,10 +54,10 @@ gh issue comment {number} --repo dvlprlife/vibe-coding --body "## Implementation
 
 ## Step 5: Transition Issue to Ready
 
-Remove `need plan` and add `status: ready` so the issue worker can pick it up:
+Remove `status: need plan` and add `status: ready` so the issue worker can pick it up:
 
 ```
-gh issue edit {number} --repo dvlprlife/vibe-coding --remove-label "need plan" --add-label "status: ready"
+gh issue edit {number} --repo dvlprlife/vibe-coding --remove-label "status: need plan" --add-label "status: ready"
 ```
 
 ## Rules
