@@ -45,7 +45,11 @@ Determine if the issue body contains enough information to write a concrete impl
 ```
 gh issue comment {number} --repo dvlprlife/vibe-coding --body "## Implementation Plan
 
-{bullet list of specific changes, file by file, with enough detail for the issue worker to execute}"
+{bullet list of specific changes, file by file, with enough detail for the issue worker to execute}
+
+## Acceptance Criteria
+
+{acceptance criteria copied from the issue body}"
 ```
 
 ## Step 5: Transition Issue to Ready
