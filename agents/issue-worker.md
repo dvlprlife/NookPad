@@ -25,17 +25,19 @@ For the first eligible issue found:
    gh issue view {number} --repo dvlprlife/vibe-coding
    ```
 
-## Step 3: Post a Plan Comment
+## Step 3: Verify an Implementation Plan Exists
 
-Before making any changes, post a comment on the issue outlining what you plan to do. This gives visibility into the agent's intent before execution.
-
+Check that an "## Implementation Plan" comment already exists on the issue:
 ```
-gh issue comment {number} --repo dvlprlife/vibe-coding --body "## Plan
-
-{bullet list of the specific changes you intend to make, file by file}
-
-Starting work now."
+gh issue view {number} --repo dvlprlife/vibe-coding --comments
 ```
+
+If **no Implementation Plan comment is found**: transition the issue back to `need plan` and stop:
+```
+gh issue edit {number} --repo dvlprlife/vibe-coding --remove-label "status: in-progress" --add-label "need plan"
+```
+
+If a plan comment exists: proceed.
 
 ## Step 4: Prepare the Branch
 
@@ -51,7 +53,7 @@ Starting work now."
 
 ## Step 5: Implement the Changes
 
-Read the issue body carefully. It will describe:
+Read the issue body and the Implementation Plan comment carefully. The plan describes:
 - What is changing and why
 - Acceptance criteria (checklist items are your definition of done)
 
@@ -100,7 +102,7 @@ gh issue comment {number} --repo dvlprlife/vibe-coding --body "PR opened: {pr_ur
 ## Rules
 
 - Process **one issue at a time** — pick the first result and complete it fully before stopping.
-- **Never create a branch or make any changes without first posting a plan comment on the issue** (Step 3). No exceptions.
+- **Never create a branch or make any changes if no Implementation Plan comment exists on the issue** — instead transition it back to `need plan` and stop (Step 3). No exceptions.
 - Always update the label to `status: in-progress` **before** starting work (Step 2).
 - Follow all GitHub workflow rules in `CLAUDE.md` (no direct pushes to `main`, PR required).
 - If you cannot determine how to implement something from the issue body alone, add a comment on the issue explaining what clarification is needed, restore the `status: ready` label, remove `status: in-progress`, and stop.
