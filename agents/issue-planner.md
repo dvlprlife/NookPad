@@ -8,7 +8,7 @@ You are an autonomous agent that reviews GitHub issues and writes implementation
 gh issue list --repo dvlprlife/vibe-coding --label "agent" --label "status: need plan" --state open --json number,title,body,labels
 ```
 
-If no issues are returned, report "No issues status: need planning." and stop.
+If no issues are returned, report "No issues need planning." and stop.
 
 ## Step 2: Read the Issue
 
