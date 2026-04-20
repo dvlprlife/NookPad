@@ -15,14 +15,15 @@ PORT = 6969
 
 _FILE_DEFAULTS = {
     "tasks.md": (
-        "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **ID** |\n"
-        "|-------|------------|--------------|--------------|----------|-----------|--------|----|\n"
+        "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Category** | **Parent** | **ID** |\n"
+        "|-------|------------|--------------|--------------|----------|-----------|---|--------|----|\n"
         "\n## Completed Tasks\n\n"
-        "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **ID** | **Date Completed** |\n"
-        "|-------|------------|--------------|--------------|----------|-----------|--------|----|-----------|\n"
+        "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Category** | **Parent** | **ID** | **Date Completed** |\n"
+        "|-------|------------|--------------|--------------|----------|-----------|---|--------|----|-----------|\n"
     ),
     "ideas.md": "# Ideas\n",
     "shopping.md": "# Shopping\n",
+    "categories.md": "# Categories\n\n| **Code** | **Description** | **Sort Order** |\n|----------|-----------------|----------------|\n",
 }
 
 
@@ -152,14 +153,14 @@ def html_escape(text: str) -> str:
             .replace('"', "&quot;"))
 
 
-COL_HEADER = "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **ID** |"
-COL_SEP    = "|---|--------|----------|----------|------|-------|---|---|"
+COL_HEADER = "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Category** | **Parent** | **ID** |"
+COL_SEP    = "|---|--------|----------|----------|------|-------|---|---|---|"
 
 
 def _parse_active(content: str):
     """Return (header_lines, rows, completed_section).
 
-    rows is a list of dicts: #, Status, Priority, Due Date, Task, Notes, Parent, ID.
+    rows is a list of dicts: #, Status, Priority, Due Date, Task, Notes, Category, Parent, ID.
     completed_section is the raw string from '## Completed Tasks' onward, or ''.
     """
     split_marker = "## Completed Tasks"
@@ -194,8 +195,9 @@ def _parse_active(content: str):
                 "Due Date": cols[3],
                 "Task": cols[4],
                 "Notes": cols[5],
-                "Parent": cols[6] if len(cols) > 6 else "",
-                "ID": cols[7] if len(cols) > 7 else "",
+                "Category": cols[6] if len(cols) > 6 else "",
+                "Parent": cols[7] if len(cols) > 7 else "",
+                "ID": cols[8] if len(cols) > 8 else "",
             })
     return header_lines, rows, completed_section
 
@@ -255,7 +257,7 @@ def _render_active(header_lines, rows) -> str:
     lines = header_lines + [COL_HEADER, COL_SEP]
     for i, r in enumerate(rows, 1):
         lines.append(
-            f"| {i} | {r['Status']} | {r['Priority']} | {r['Due Date']} | {r['Task']} | {r['Notes']} | {r.get('Parent', '')} | {r.get('ID', '')} |"
+            f"| {i} | {r['Status']} | {r['Priority']} | {r['Due Date']} | {r['Task']} | {r['Notes']} | {r.get('Category', '')} | {r.get('Parent', '')} | {r.get('ID', '')} |"
         )
     return "\n".join(lines) + "\n"
 
@@ -395,13 +397,13 @@ def complete_task(task_num: int):
     new_content = _render_active(header_lines, remaining)
 
     if not completed_section:
-        completed_section = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **ID** | **Date Completed** |\n|---|---|---|---|---|---|---|---|---|\n"
+        completed_section = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Category** | **Parent** | **ID** | **Date Completed** |\n|---|---|---|---|---|---|---|---|---|---|\n"
 
     existing_comp = parse_md_table(completed_section.split("## Completed Tasks", 1)[1])
     today = date_cls.today().isoformat()
     next_num = len(existing_comp) + 1
 
-    new_rows_text = f"| {next_num} | ✅ | {found['Priority']} | {found['Due Date']} | {found['Task']} | {found['Notes']} | {found.get('Parent', '')} | {found.get('ID', '')} | {today} |\n"
+    new_rows_text = f"| {next_num} | ✅ | {found['Priority']} | {found['Due Date']} | {found['Task']} | {found['Notes']} | {found.get('Category', '')} | {found.get('Parent', '')} | {found.get('ID', '')} | {today} |\n"
 
     completed_section = completed_section.rstrip("\n") + "\n" + new_rows_text
     path.write_text(new_content + "\n" + completed_section)
@@ -433,10 +435,10 @@ def reopen_completed_task(task_num: int):
     kept = [r for r in comp_rows if r is not found]
 
     # Rebuild completed section
-    header = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **ID** | **Date Completed** |\n|---|---|---|---|---|---|---|---|---|\n"
+    header = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Category** | **Parent** | **ID** | **Date Completed** |\n|---|---|---|---|---|---|---|---|---|---|\n"
     rows_text = ""
     for i, r in enumerate(kept, 1):
-        rows_text += f"| {i} | {r.get('Status','✅')} | {r.get('Priority','')} | {r.get('Due Date','')} | {r.get('Task','')} | {r.get('Notes','')} | {r.get('Parent','')} | {r.get('ID','')} | {r.get('Date Completed','')} |\n"
+        rows_text += f"| {i} | {r.get('Status','✅')} | {r.get('Priority','')} | {r.get('Due Date','')} | {r.get('Task','')} | {r.get('Notes','')} | {r.get('Category','')} | {r.get('Parent','')} | {r.get('ID','')} | {r.get('Date Completed','')} |\n"
     new_completed = header + rows_text
 
     # Re-add to active list
@@ -455,6 +457,7 @@ def reopen_completed_task(task_num: int):
         "Due Date": due_raw,
         "Task": found.get("Task", ""),
         "Notes": found.get("Notes", ""),
+        "Category": found.get("Category", ""),
         "Parent": found.get("Parent", ""),
         "ID": found.get("ID", ""),
     }
@@ -477,14 +480,14 @@ def delete_completed_task(task_num: int):
     if len(kept) == len(comp_rows):
         return  # nothing removed
     # Rebuild completed section with renumbered rows
-    header = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Parent** | **ID** | **Date Completed** |\n|---|---|---|---|---|---|---|---|---|\n"
+    header = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Category** | **Parent** | **ID** | **Date Completed** |\n|---|---|---|---|---|---|---|---|---|---|\n"
     rows_text = ""
     for i, r in enumerate(kept, 1):
-        rows_text += f"| {i} | {r.get('Status','✅')} | {r.get('Priority','')} | {r.get('Due Date','')} | {r.get('Task','')} | {r.get('Notes','')} | {r.get('Parent','')} | {r.get('ID','')} | {r.get('Date Completed','')} |\n"
+        rows_text += f"| {i} | {r.get('Status','✅')} | {r.get('Priority','')} | {r.get('Due Date','')} | {r.get('Task','')} | {r.get('Notes','')} | {r.get('Category','')} | {r.get('Parent','')} | {r.get('ID','')} | {r.get('Date Completed','')} |\n"
     path.write_text(active_part + header + rows_text)
 
 
-def edit_task(task_num: int, due_date: str, task: str, notes: str, priority: str, parent: str = ""):
+def edit_task(task_num: int, due_date: str, task: str, notes: str, priority: str, parent: str = "", category: str = ""):
     """Update a task's fields in-place, re-sort, and save."""
     if priority not in VALID_PRIORITIES:
         priority = "Medium"
@@ -508,6 +511,7 @@ def edit_task(task_num: int, due_date: str, task: str, notes: str, priority: str
             r["Notes"] = notes
             r["Priority"] = priority
             r["Parent"] = parent
+            r["Category"] = category
             break
     _sync_parent_due_dates(rows)
     rows.sort(key=lambda r: (r["Due Date"], PRIORITY_ORDER.get(r["Priority"], 99)))
@@ -531,7 +535,7 @@ def remove_shopping_item(store: str, item: str):
     path.write_text("\n".join(new_lines) + "\n")
 
 
-def add_task(due_date: str, task: str, notes: str, priority: str = "Medium", parent: str = ""):
+def add_task(due_date: str, task: str, notes: str, priority: str = "Medium", parent: str = "", category: str = ""):
     """Append a task to tasks.md, re-sort active tasks, renumber, and save."""
     if priority not in VALID_PRIORITIES:
         priority = "Medium"
@@ -552,7 +556,7 @@ def add_task(due_date: str, task: str, notes: str, priority: str = "Medium", par
         parent = ""
 
     new_id = str(_next_task_id(rows, completed_section))
-    rows.append({"#": "", "Status": status, "Priority": priority, "Due Date": due_date, "Task": task, "Notes": notes, "Parent": parent, "ID": new_id})
+    rows.append({"#": "", "Status": status, "Priority": priority, "Due Date": due_date, "Task": task, "Notes": notes, "Category": category, "Parent": parent, "ID": new_id})
     _sync_parent_due_dates(rows)
     rows.sort(key=lambda r: (r["Due Date"], PRIORITY_ORDER.get(r["Priority"], 99)))
 
@@ -560,6 +564,65 @@ def add_task(due_date: str, task: str, notes: str, priority: str = "Medium", par
     if completed_section:
         new_content += "\n" + completed_section
     path.write_text(new_content)
+
+
+# ---------------------------------------------------------------------------
+# Categories
+# ---------------------------------------------------------------------------
+
+def load_categories():
+    """Return list of dicts {code, description, sort_order} sorted by sort_order."""
+    content = read("categories.md")
+    rows = parse_md_table(content)
+    result = []
+    for r in rows:
+        try:
+            sort_order = int(r.get("Sort Order", "0") or "0")
+        except ValueError:
+            sort_order = 0
+        result.append({
+            "code": r.get("Code", "").strip(),
+            "description": r.get("Description", "").strip(),
+            "sort_order": sort_order,
+        })
+    return sorted(result, key=lambda r: r["sort_order"])
+
+
+def save_categories(cats):
+    """Write categories list back to categories.md."""
+    path = BASE / "categories.md"
+    lines = [
+        "# Categories\n",
+        "| **Code** | **Description** | **Sort Order** |",
+        "|----------|-----------------|----------------|",
+    ]
+    for c in cats:
+        lines.append(f"| {c['code']} | {c['description']} | {c['sort_order']} |")
+    path.write_text("\n".join(lines) + "\n")
+
+
+def add_category(code: str, description: str, sort_order: int):
+    cats = load_categories()
+    cats.append({"code": code, "description": description, "sort_order": sort_order})
+    cats.sort(key=lambda c: c["sort_order"])
+    save_categories(cats)
+
+
+def edit_category(original_code: str, code: str, description: str, sort_order: int):
+    cats = load_categories()
+    for c in cats:
+        if c["code"] == original_code:
+            c["code"] = code
+            c["description"] = description
+            c["sort_order"] = sort_order
+            break
+    cats.sort(key=lambda c: c["sort_order"])
+    save_categories(cats)
+
+
+def delete_category(code: str):
+    cats = [c for c in load_categories() if c["code"] != code]
+    save_categories(cats)
 
 
 # ---------------------------------------------------------------------------
@@ -613,6 +676,7 @@ def tasks_html():
         task_js = r.get("Task", "").replace("\\", "\\\\").replace("'", "\\'").replace('"', '&quot;').replace("`", "\\`")
         notes_js = r.get("Notes", "").replace("\\", "\\\\").replace("'", "\\'").replace('"', '&quot;').replace("`", "\\`")
         parent_id_js = html_escape(r.get("Parent", ""))
+        category_js = html_escape(r.get("Category", ""))
         indent_prefix = '<span class="subtask-indent">↳</span>' if indent else ""
         priority_cell = "" if is_parent else priority_badge(priority)
         classes = [cls]
@@ -630,7 +694,7 @@ def tasks_html():
             <td class="action-cell">
                 <form method="POST" action="/complete-task" style="display:inline"><input type="hidden" name="num" value="{num}"><button type="submit" class="done-btn" title="Mark complete">✓</button></form>
                 <span class="task-hover-actions">
-                    <button type="button" class="edit-btn" title="Edit task" onclick="openEditTask('{num}','{task_js}','{notes_js}','{due_date_val}','{priority}','{parent_id_js}')">✎</button>
+                    <button type="button" class="edit-btn" title="Edit task" onclick="openEditTask('{num}','{task_js}','{notes_js}','{due_date_val}','{priority}','{parent_id_js}','{category_js}')">✎</button>
                     <form method="POST" action="/delete-task" style="display:inline"><input type="hidden" name="num" value="{num}"><button type="submit" class="del-btn" title="Delete task" onclick="return confirm('Delete this task permanently?')">✕</button></form>
                 </span>
             </td>
@@ -666,6 +730,12 @@ def tasks_html():
         label = html_escape(r.get("Task", ""))
         parent_opts += f'<option value="{task_id}">#{num} — {label}</option>'
 
+    # Category selector options
+    cats = load_categories()
+    cat_opts = '<option value="">— No Category —</option>'
+    for c in cats:
+        cat_opts += f'<option value="{html_escape(c["code"])}">{html_escape(c["description"])}</option>'
+
     return f"""<section class="card tasks-card">
         <h2>Tasks <span class="count">{total}</span>{badge_extra}
             <button class="add-btn" onclick="document.getElementById('task-modal').classList.add('open')">+ Add</button>
@@ -690,6 +760,9 @@ def tasks_html():
                         <option value="Low">Low</option>
                         <option value="None">None</option>
                     </select>
+                </label>
+                <label>Category
+                    <select name="category">{cat_opts}</select>
                 </label>
                 <label>Task
                     <input type="text" name="task" required placeholder="What needs to be done?">
@@ -724,6 +797,9 @@ def tasks_html():
                         <option value="None">None</option>
                     </select>
                 </label>
+                <label>Category
+                    <select name="category" id="edit-task-category">{cat_opts}</select>
+                </label>
                 <label>Task
                     <input type="text" name="task" id="edit-task-task" required placeholder="What needs to be done?">
                 </label>
@@ -742,13 +818,14 @@ def tasks_html():
     </div>
 
     <script>
-    function openEditTask(num, task, notes, due, priority, parentId) {{
+    function openEditTask(num, task, notes, due, priority, parentId, category) {{
         document.getElementById('edit-task-num').value = num;
         document.getElementById('edit-task-task').value = task;
         document.getElementById('edit-task-notes').value = notes;
         document.getElementById('edit-task-due').value = due;
         document.getElementById('edit-task-priority').value = priority;
         document.getElementById('edit-task-parent').value = parentId || '';
+        document.getElementById('edit-task-category').value = category || '';
         document.getElementById('task-edit-modal').classList.add('open');
     }}
     </script>"""
@@ -917,6 +994,7 @@ def ideas_html():
 
 def cheatsheet_links():
     links = '<a href="/completed" class="nav-link">Completed Tasks</a>'
+    links += '<a href="/categories" class="nav-link">Categories</a>'
     for path in sorted(CHEATSHEETS_DIR.glob("*.md")):
         label = path.stem.replace("-cheatsheet", "").replace("-", " ").title()
         links += f'<a href="/cheatsheet/{path.name}" class="nav-link">{label}</a>'
@@ -1453,6 +1531,110 @@ def completed_tasks_page():
 </html>"""
 
 
+def categories_page():
+    cats = load_categories()
+
+    def make_row(c):
+        code = html_escape(c["code"])
+        desc = html_escape(c["description"])
+        sort = html_escape(str(c["sort_order"]))
+        code_js = c["code"].replace("'", "\\'")
+        desc_js = c["description"].replace("'", "\\'")
+        return f"""<tr>
+            <td>{code}</td>
+            <td>{desc}</td>
+            <td>{sort}</td>
+            <td class="action-cell">
+                <span class="task-hover-actions">
+                    <button type="button" class="edit-btn" title="Edit category" onclick="openEditCategory('{code_js}','{desc_js}','{sort}')">✎</button>
+                    <form method="POST" action="/delete-category" style="display:inline"><input type="hidden" name="code" value="{code}"><button type="submit" class="del-btn" title="Delete category" onclick="return confirm('Delete category {code}?')">✕</button></form>
+                </span>
+            </td>
+        </tr>"""
+
+    rows_html = "".join(make_row(c) for c in cats)
+    total = len(cats)
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Categories</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <a href="/" class="back">← Dashboard</a>
+  </header>
+  <main style="max-width:700px;margin:0 auto;">
+    <div class="card">
+      <h2>Categories <span class="count">{total}</span>
+        <button class="add-btn" onclick="document.getElementById('cat-modal').classList.add('open')">+ Add</button>
+      </h2>
+      <table>
+        <thead><tr><th>Code</th><th>Description</th><th>Sort Order</th><th></th></tr></thead>
+        <tbody>{rows_html}</tbody>
+      </table>
+    </div>
+  </main>
+
+  <div id="cat-modal" class="modal-overlay" onclick="if(event.target===this)this.classList.remove('open')">
+    <div class="modal">
+      <h3>Add Category</h3>
+      <form method="POST" action="/add-category">
+        <label>Code
+          <input type="text" name="code" required placeholder="e.g. WORK">
+        </label>
+        <label>Description
+          <input type="text" name="description" required placeholder="e.g. Work Projects">
+        </label>
+        <label>Sort Order
+          <input type="number" name="sort_order" required value="{(cats[-1]['sort_order'] + 1) if cats else 1}">
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="cancel-btn" onclick="document.getElementById('cat-modal').classList.remove('open')">Cancel</button>
+          <button type="submit" class="submit-btn">Add Category</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="cat-edit-modal" class="modal-overlay" onclick="if(event.target===this)this.classList.remove('open')">
+    <div class="modal">
+      <h3>Edit Category</h3>
+      <form method="POST" action="/edit-category">
+        <input type="hidden" name="original_code" id="edit-cat-original-code">
+        <label>Code
+          <input type="text" name="code" id="edit-cat-code" required>
+        </label>
+        <label>Description
+          <input type="text" name="description" id="edit-cat-description" required>
+        </label>
+        <label>Sort Order
+          <input type="number" name="sort_order" id="edit-cat-sort" required>
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="cancel-btn" onclick="document.getElementById('cat-edit-modal').classList.remove('open')">Cancel</button>
+          <button type="submit" class="submit-btn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+  function openEditCategory(code, desc, sort) {{
+    document.getElementById('edit-cat-original-code').value = code;
+    document.getElementById('edit-cat-code').value = code;
+    document.getElementById('edit-cat-description').value = desc;
+    document.getElementById('edit-cat-sort').value = sort;
+    document.getElementById('cat-edit-modal').classList.add('open');
+  }}
+  </script>
+</body>
+</html>"""
+
+
 # ---------------------------------------------------------------------------
 # HTTP handler
 # ---------------------------------------------------------------------------
@@ -1475,6 +1657,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             body = dashboard_page().encode()
         elif path == "/completed":
             body = completed_tasks_page().encode()
+        elif path == "/categories":
+            body = categories_page().encode()
         elif path.startswith("/cheatsheet/"):
             filename = path[len("/cheatsheet/"):]
             page = cheatsheet_page(filename)
@@ -1510,8 +1694,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             notes = get("notes")
             priority = get("priority", "Medium")
             parent = get("parent")
+            category = get("category")
             if due_raw and task:
-                add_task(due_raw + " 00:00", task, notes, priority, parent)
+                add_task(due_raw + " 00:00", task, notes, priority, parent, category)
 
         elif path == "/add-shopping":
             store = get("store")
@@ -1536,8 +1721,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             notes = get("notes")
             priority = get("priority", "Medium")
             parent = get("parent", "")
+            category = get("category", "")
             if num.isdigit() and due_raw and task:
-                edit_task(int(num), due_raw + " 00:00", task, notes, priority, parent)
+                edit_task(int(num), due_raw + " 00:00", task, notes, priority, parent, category)
 
         elif path == "/complete-shopping":
             store = get("store")
@@ -1563,6 +1749,44 @@ class Handler(http.server.BaseHTTPRequestHandler):
             idea_id = get("id")
             if idea_id:
                 delete_idea(idea_id)
+
+        elif path == "/add-category":
+            code = get("code")
+            description = get("description")
+            sort_order = get("sort_order", "0")
+            if code and description:
+                try:
+                    add_category(code, description, int(sort_order))
+                except ValueError:
+                    add_category(code, description, 0)
+            self.send_response(303)
+            self.send_header("Location", "/categories")
+            self.end_headers()
+            return
+
+        elif path == "/edit-category":
+            original_code = get("original_code")
+            code = get("code")
+            description = get("description")
+            sort_order = get("sort_order", "0")
+            if original_code and code and description:
+                try:
+                    edit_category(original_code, code, description, int(sort_order))
+                except ValueError:
+                    edit_category(original_code, code, description, 0)
+            self.send_response(303)
+            self.send_header("Location", "/categories")
+            self.end_headers()
+            return
+
+        elif path == "/delete-category":
+            code = get("code")
+            if code:
+                delete_category(code)
+            self.send_response(303)
+            self.send_header("Location", "/categories")
+            self.end_headers()
+            return
 
         elif path == "/reopen-completed-task":
             num = get("num")
