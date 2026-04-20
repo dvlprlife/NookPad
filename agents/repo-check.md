@@ -21,6 +21,7 @@ For each label in the list below, check if it exists in the output from Step 1. 
 | `status: follow up` | `#c5def5` | Needs follow-up after completion | `gh label create "status: follow up" --repo dvlprlife/vibe-coding --color "c5def5" --description "Needs follow-up after completion"` |
 | `human` | `#b60205` | Requires human attention or intervention | `gh label create "human" --repo dvlprlife/vibe-coding --color "b60205" --description "Requires human attention or intervention"` |
 | `status: need plan` | `#fbca04` | Issue needs a plan before work can begin | `gh label create "status: need plan" --repo dvlprlife/vibe-coding --color "fbca04" --description "Issue needs a plan before work can begin"` |
+| `status: agent approved` | `#2da44e` | PR reviewer agent found no issues; awaiting human approval | `gh label create "status: agent approved" --repo dvlprlife/vibe-coding --color "2da44e" --description "PR reviewer agent found no issues; awaiting human approval"` |
 
 ## Step 3: Report Results
 
