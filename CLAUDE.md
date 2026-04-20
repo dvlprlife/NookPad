@@ -12,6 +12,7 @@
 - `lists/tasks.md` — the active task list
 - `lists/ideas.md` — a running list of ideas
 - `lists/shopping.md` — shopping list organized by store
+- `lists/categories.md` — task categories (code, description, sort order)
 - `cheatsheets/` — reference cheatsheets (raspberry-pi, tmux)
 - `server.py` — dashboard web server (port 6969)
 - `dashboard.service` — systemd service file for the dashboard
@@ -25,6 +26,7 @@
 | `Due Date` | Format: `YYYY-MM-DD HH:MM` (24h). Default time is `00:00` if none given |
 | `Task` | Short description of the task |
 | `Notes` | Optional context or details |
+| `Category` | Category code from `categories.md`; blank if uncategorized |
 | `Parent` | Internal `ID` of the parent task if this is a sub-task; blank for top-level tasks |
 | `ID` | Permanent internal identifier. Assigned at creation, never changes, never reused |
 
@@ -34,7 +36,7 @@
 - Renumber `#` sequentially after any sort. `Parent` and `ID` values are never renumbered.
 
 ## Column Order
-`#` | `Status` | `Priority` | `Due Date` | `Task` | `Notes` | `Parent` | `ID`
+`#` | `Status` | `Priority` | `Due Date` | `Task` | `Notes` | `Category` | `Parent` | `ID`
 
 ## Sub-tasks
 - A sub-task has its parent's `ID` in the `Parent` column.
@@ -52,6 +54,7 @@
 - **Editing a task**: Update the row fields (Due Date, Priority, Task, Notes) in-place, re-sort by due date then priority, and renumber. Re-evaluate Status (overdue or not) based on the new due date.
 - **Parent due date sync**: After adding or editing a sub-task, automatically set the parent task's due date to the nearest (earliest) due date among all its sub-tasks. Re-evaluate the parent's Status after updating.
 - **Notes are optional**: Leave as blank space if none provided, do not use `&nbsp;` in Notes.
+- **Category is optional**: Leave as blank space if none provided. Use the category code from `categories.md`.
 
 ## Ideas (`ideas.md`)
 - Format: `## {id} | {YYYY-MM-DD} | {description} | {parent_id}`
@@ -88,7 +91,15 @@
 - Dashboard layout: Tasks (top-left), Ideas (bottom-left), Shopping (right, full height).
 - Sub-tasks are displayed indented under their parent task in the Tasks panel.
 - Completing a task via the dashboard follows the same rules as completing one manually (move to Completed Tasks, set Date Completed to today, renumber both tables).
-- Header nav links (left to right): Completed Tasks, then cheatsheet links.
+- Header nav links (left to right): Completed Tasks, Categories, then cheatsheet links.
 - Completed Tasks page (`/completed`): lists all completed tasks with priority, due date, task, notes, and date completed. ✕ (delete) appears on hover to permanently remove a row; redirects back to `/completed` after deletion.
 - To install as a service: `sudo cp dashboard.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now dashboard`
 - To restart after changes: `sudo systemctl restart dashboard`
+
+## Categories (`categories.md`)
+- Format: `| **Code** | **Description** | **Sort Order** |` table in `lists/categories.md`.
+- `Code` is a short identifier (e.g. `WORK`, `HOME`). Used as the value stored in task rows.
+- `Description` is the human-readable label shown in dropdowns.
+- `Sort Order` is an integer controlling display order in dropdowns and the categories page.
+- Managed via the `/categories` dashboard page (add, edit, delete).
+- Categories can be added, edited, or deleted via POST endpoints: `/add-category`, `/edit-category`, `/delete-category`.
