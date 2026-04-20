@@ -9,6 +9,7 @@ This document describes the full lifecycle of an issue through the agent system 
 | Repo Check | `repo-check.md` | Ensures all required labels exist in the repo |
 | Issue Planner | `issue-planner.md` | Reviews issues and writes implementation plans |
 | Issue Worker | `issue-worker.md` | Implements changes, commits, and opens a PR |
+| PR Reviewer | `pr-reviewer.md` | Reviews the PR against the plan, AC, code quality, and CLAUDE.md |
 
 ---
 
@@ -59,6 +60,20 @@ The worker finds issues labeled `agent` + `status: ready`.
 
 ---
 
+### 4.5. Automated Review (PR Reviewer Agent)
+The reviewer finds issues labeled `agent` + `status: in-review`.
+
+1. Locates the open PR referencing the issue (`Closes #{number}`)
+2. Gathers the issue body, the `## Implementation Plan` comment, the PR, and the diff
+3. Reviews against four criteria: Implementation Plan adherence, Acceptance Criteria, code quality, and CLAUDE.md compliance
+4. Posts a review on the PR (request changes if findings exist, comment review otherwise — agents cannot self-approve)
+5. Posts a summary comment on the issue
+
+**If findings:** adds `status: follow up` + `human`, removes `status: in-review`.
+**If clean:** adds `status: agent approved`, removes `status: in-review`.
+
+---
+
 ### 5. Review (Human)
 A human reviews the PR. On merge the issue is closed.
 
@@ -86,6 +101,12 @@ A human reviews the PR. On merge the issue is closed.
         ▼
   agent + status: in-review
         │
+        ▼ (pr reviewer)
+        ├─── findings ──▶ status: follow up + human  (awaits human)
+        │
+        ▼
+  agent + status: agent approved
+        │
         ▼ (human merges PR)
   issue closed
 ```
@@ -102,4 +123,5 @@ A human reviews the PR. On merge the issue is closed.
 | `status: in-progress` | `#e4e669` | Worker is actively implementing |
 | `status: in-review` | `#d93f0b` | PR open, awaiting human review |
 | `status: follow up` | `#c5def5` | Needs follow-up after human review |
+| `status: agent approved` | `#2da44e` | PR reviewer agent found no issues; awaiting human approval |
 | `human` | `#b60205` | Requires human attention |
