@@ -77,6 +77,7 @@ Each panel has a **+ Add** button in the header to add new entries without editi
 ### Completed Tasks
 - Click the **Completed Tasks** link in the header (left of the cheatsheet links) to open the completed tasks page
 - Lists all completed tasks with their priority, original due date, notes, and date completed
+- Rows are grouped by **Category** using the same ordering as the active Tasks panel; click a category header to collapse or expand that group
 - Hover over any row to reveal the **↩** (reopen) and **✕** (delete) buttons
 - **↩** moves the task back to the active list, re-evaluating its overdue status based on the original due date
 - **✕** permanently removes the completed task — a confirmation dialog appears first
