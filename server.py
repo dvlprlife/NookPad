@@ -1553,11 +1553,42 @@ def completed_tasks_page():
         else:
             top_level_comp.append(r)
 
-    rows_html = ""
+    cats = load_categories()
+    cat_meta = {c["code"]: c for c in cats if c["code"]}
+
+    buckets = {}
     for r in top_level_comp:
-        rows_html += make_comp_row(r)
-        for child in sub_of.get(r.get("ID", ""), []):
-            rows_html += make_comp_row(child, indent=True)
+        code = r.get("Category", "").strip()
+        key = code if code in cat_meta else ""
+        buckets.setdefault(key, []).append(r)
+
+    ordered_keys = sorted(
+        [k for k in buckets if k != ""],
+        key=lambda k: (cat_meta[k]["sort_order"], cat_meta[k]["description"].lower()),
+    )
+    if "" in buckets:
+        ordered_keys.append("")
+
+    groups_html = ""
+    for key in ordered_keys:
+        bucket = buckets[key]
+        group_rows = ""
+        task_count = 0
+        for r in bucket:
+            group_rows += make_comp_row(r)
+            task_count += 1
+            for child in sub_of.get(r.get("ID", ""), []):
+                group_rows += make_comp_row(child, indent=True)
+                task_count += 1
+        label = html_escape(cat_meta[key]["description"]) if key else "None"
+        groups_html += (
+            f'<tbody class="cat-group">'
+            f'<tr class="cat-header" onclick="toggleCategory(this)">'
+            f'<td colspan="7"><span class="cat-caret">▼</span> {label} '
+            f'<span class="cat-count">{task_count}</span></td></tr>'
+            f'{group_rows}'
+            f'</tbody>'
+        )
 
     total = len(comp_rows)
     return f"""<!DOCTYPE html>
@@ -1577,10 +1608,18 @@ def completed_tasks_page():
       <h2>Completed Tasks <span class="count">{total}</span></h2>
       <table>
         <thead><tr><th></th><th>Priority</th><th>Due</th><th>Task</th><th>Notes</th><th>Completed</th><th></th></tr></thead>
-        <tbody>{rows_html}</tbody>
+        {groups_html}
       </table>
     </div>
   </main>
+  <script>
+  function toggleCategory(headerTr) {{
+      const tbody = headerTr.parentElement;
+      const caret = headerTr.querySelector('.cat-caret');
+      tbody.classList.toggle('collapsed');
+      caret.textContent = tbody.classList.contains('collapsed') ? '▶' : '▼';
+  }}
+  </script>
 </body>
 </html>"""
 
