@@ -712,12 +712,45 @@ def tasks_html():
             top_level.append(r)
 
     parent_ids = set(sub_of.keys())
-    rows = ""
+
+    cats = load_categories()
+    cat_meta = {c["code"]: c for c in cats if c["code"]}
+
+    buckets = {}
     for r in top_level:
-        is_parent = r.get("ID", "") in parent_ids
-        rows += make_row(r, is_parent=is_parent)
-        for child in sub_of.get(r.get("ID", ""), []):
-            rows += make_row(child, indent=True)
+        code = r.get("Category", "").strip()
+        key = code if code in cat_meta else ""
+        buckets.setdefault(key, []).append(r)
+
+    def group_sort_key(code):
+        meta = cat_meta.get(code)
+        return (meta["sort_order"], meta["description"].lower())
+
+    ordered_keys = sorted([k for k in buckets if k != ""], key=group_sort_key)
+    if "" in buckets:
+        ordered_keys.append("")
+
+    groups_html = ""
+    for key in ordered_keys:
+        bucket = buckets[key]
+        group_rows = ""
+        task_count = 0
+        for r in bucket:
+            is_parent = r.get("ID", "") in parent_ids
+            group_rows += make_row(r, is_parent=is_parent)
+            task_count += 1
+            for child in sub_of.get(r.get("ID", ""), []):
+                group_rows += make_row(child, indent=True)
+                task_count += 1
+        label = html_escape(cat_meta[key]["description"]) if key else "None"
+        groups_html += (
+            f'<tbody class="cat-group">'
+            f'<tr class="cat-header" onclick="toggleCategory(this)">'
+            f'<td colspan="6"><span class="cat-caret">▼</span> {label} '
+            f'<span class="cat-count">{task_count}</span></td></tr>'
+            f'{group_rows}'
+            f'</tbody>'
+        )
 
     total = len(active)
     overdue_count = sum(1 for r in active if "⚠️" in r.get("Status", ""))
@@ -731,7 +764,6 @@ def tasks_html():
         parent_opts += f'<option value="{task_id}">#{num} — {label}</option>'
 
     # Category selector options
-    cats = load_categories()
     cat_opts = '<option value="">— No Category —</option>'
     for c in cats:
         cat_opts += f'<option value="{html_escape(c["code"])}">{html_escape(c["description"])}</option>'
@@ -742,7 +774,7 @@ def tasks_html():
         </h2>
         <table>
             <thead><tr><th></th><th>Priority</th><th>Due</th><th>Task</th><th>Notes</th><th></th></tr></thead>
-            <tbody>{rows}</tbody>
+            {groups_html}
         </table>
     </section>
 
@@ -827,6 +859,12 @@ def tasks_html():
         document.getElementById('edit-task-parent').value = parentId || '';
         document.getElementById('edit-task-category').value = category || '';
         document.getElementById('task-edit-modal').classList.add('open');
+    }}
+    function toggleCategory(headerTr) {{
+        const tbody = headerTr.parentElement;
+        const caret = headerTr.querySelector('.cat-caret');
+        tbody.classList.toggle('collapsed');
+        caret.textContent = tbody.classList.contains('collapsed') ? '▶' : '▼';
     }}
     </script>"""
 
@@ -1281,6 +1319,22 @@ tr.subtask td:first-child { color: #64748b; }
 tr.parent-task td { background: #141c2b; color: #94a3b8; }
 tr.parent-task td:first-child { color: #475569; }
 tr.parent-task .due { color: #64748b; }
+tr.cat-header td {
+    background: #0f2942;
+    color: #7dd3fc;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.4rem 0.6rem;
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid #1e4a7a;
+}
+tr.cat-header:hover td { background: #1e4a7a; color: #e0f2fe; }
+.cat-caret { display: inline-block; width: 0.9rem; color: #7dd3fc; font-size: 0.7rem; }
+.cat-count { color: #64748b; font-size: 0.7rem; margin-left: 0.35rem; font-weight: 500; text-transform: none; }
+tbody.cat-group.collapsed tr:not(.cat-header) { display: none; }
 .shop-item { flex: 1; }
 .card ul li { display: flex; align-items: center; gap: 0.5rem; }
 
