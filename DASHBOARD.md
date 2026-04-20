@@ -62,13 +62,16 @@ Each panel has a **+ Add** button in the header to add new entries without editi
 
 ### Tasks
 - Click **+ Add** in the Tasks panel to open the form
-- Fields: Due Date, Priority (High / Medium / Low), Task, Notes, Parent Task (optional)
+- Fields: Due Date, Priority (High / Medium / Low), Category (optional), Task, Notes, Parent Task (optional)
 - Select a **Parent Task** to create a sub-task — it will appear indented (↳) directly below its parent in the list
 - When a sub-task is added or edited, the parent task's due date automatically updates to the earliest due date among all its sub-tasks
+- Tasks are grouped by **Category** in the panel — groups are ordered by each category's Sort Order (ascending), with ties broken alphabetically by description. Tasks without a category appear under a **None** group that always sorts last
+- Sub-tasks stay under their parent's group regardless of their own category
+- Click a category header to collapse or expand that group's rows; all groups start expanded on page load
 - Click the **✓** button on any task row to mark it complete — it moves to the Completed Tasks section in `tasks.md` with today's date
 - Sub-tasks appear indented (↳) under their parent on the Completed Tasks page as well
 - Hover over any task row to reveal the **✎** (edit) and **✕** (delete) buttons
-- **✎** opens an edit modal pre-filled with the task's due date, priority, name, notes, and parent task
+- **✎** opens an edit modal pre-filled with the task's due date, priority, category, name, notes, and parent task
 - **✕** permanently deletes the task — a confirmation dialog appears first. If a parent task is deleted while sub-tasks exist, those sub-tasks remain but lose their parent relationship
 
 ### Completed Tasks
