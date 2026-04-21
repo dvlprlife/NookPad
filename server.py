@@ -1681,17 +1681,25 @@ def completed_tasks_page():
 
 def categories_page():
     cats = load_categories()
+    _, active_tasks, _ = _parse_active(read("tasks.md"))
+    counts = {}
+    for t in active_tasks:
+        code = t.get("Category", "").strip()
+        if code:
+            counts[code] = counts.get(code, 0) + 1
 
     def make_row(c):
         code = html_escape(c["code"])
         desc = html_escape(c["description"])
         sort = html_escape(str(c["sort_order"]))
+        count = counts.get(c["code"], 0)
         code_js = c["code"].replace("'", "\\'")
         desc_js = c["description"].replace("'", "\\'")
         return f"""<tr>
             <td>{code}</td>
             <td>{desc}</td>
             <td>{sort}</td>
+            <td>{count}</td>
             <td class="action-cell">
                 <span class="task-hover-actions">
                     <button type="button" class="edit-btn" title="Edit category" onclick="openEditCategory('{code_js}','{desc_js}','{sort}')">✎</button>
@@ -1722,7 +1730,7 @@ def categories_page():
         <button class="add-btn" onclick="document.getElementById('cat-modal').classList.add('open')">+ Add</button>
       </h2>
       <table>
-        <thead><tr><th>Code</th><th>Description</th><th>Sort Order</th><th></th></tr></thead>
+        <thead><tr><th>Code</th><th>Description</th><th>Sort Order</th><th>Tasks</th><th></th></tr></thead>
         <tbody>{rows_html}</tbody>
       </table>
     </div>
