@@ -31,7 +31,15 @@ def notepad_icon(size_px: int) -> str:
     return NOTEPAD_SVG.format(size=size_px)
 
 
-FAVICON_SVG = NOTEPAD_SVG.format(size=32)
+FAVICON_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" '
+    'width="32" height="32">'
+    '<rect x="2" y="1" width="12" height="14" rx="2" fill="#2f3e52"/>'
+    '<rect x="4" y="4" width="8" height="1.2" rx="0.5" fill="#f5f5f0"/>'
+    '<rect x="4" y="7" width="8" height="1.2" rx="0.5" fill="#f5f5f0"/>'
+    '<rect x="4" y="10" width="5.5" height="1.2" rx="0.5" fill="#f5f5f0"/>'
+    '</svg>'
+)
 FAVICON_LINK = '<link rel="icon" type="image/svg+xml" href="/favicon.svg">'
 
 
