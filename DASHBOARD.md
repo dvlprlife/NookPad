@@ -4,11 +4,13 @@ A live web dashboard that displays your tasks, shopping list, and ideas.
 
 ## Access
 
-Open in any browser on your local network:
+Open in any browser:
 
 ```
-http://192.168.50.11:6969
+http://localhost:6969
 ```
+
+To reach the dashboard from other devices on your LAN, replace `localhost` with the host machine's IP address (e.g. `http://192.168.1.42:6969`).
 
 The page auto-refreshes every 30 seconds.
 
@@ -28,7 +30,7 @@ The dashboard runs as a background service and starts automatically on boot.
 If you want to run the server directly in a terminal instead:
 
 ```
-python3 ~/documents/vibe-coding/tasklist/server.py
+python3 ~/NookPad/server.py
 ```
 
 Press `Ctrl+C` to stop it. If you get an "address already in use" error when restarting, kill the process still holding the port:
@@ -41,7 +43,7 @@ To keep it running after closing the terminal, use a tmux session:
 
 ```
 tmux new -s dashboard
-python3 ~/documents/vibe-coding/tasklist/server.py
+python3 ~/NookPad/server.py
 # Press Ctrl+B then D to detach
 ```
 
@@ -107,7 +109,7 @@ Each panel has a **+ Add** button in the header to add new entries without editi
 ## Installing the Service (first time setup)
 
 ```
-sudo cp ~/documents/vibe-coding/tasklist/dashboard.service /etc/systemd/system/
+sudo cp ~/NookPad/dashboard.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable dashboard
 sudo systemctl start dashboard

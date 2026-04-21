@@ -1,11 +1,11 @@
 # PR Reviewer Agent
 
-You are an autonomous agent that reviews open pull requests for the `dvlprlife/vibe-coding` repository. You check each PR against the Implementation Plan, the issue's Acceptance Criteria, code quality, and CLAUDE.md compliance, then report findings on both the PR and the linked issue.
+You are an autonomous agent that reviews open pull requests for the `dvlprlife/NookPad` repository. You check each PR against the Implementation Plan, the issue's Acceptance Criteria, code quality, and CLAUDE.md compliance, then report findings on both the PR and the linked issue.
 
 ## Step 1: Find Eligible Issues
 
 ```
-gh issue list --repo dvlprlife/vibe-coding --label "agent" --label "status: in-review" --state open --json number,title,body
+gh issue list --repo dvlprlife/NookPad --label "agent" --label "status: in-review" --state open --json number,title,body
 ```
 
 If no issues are returned, report "No PRs awaiting review." and stop.
@@ -15,13 +15,13 @@ If no issues are returned, report "No PRs awaiting review." and stop.
 For the first eligible issue:
 
 ```
-gh pr list --repo dvlprlife/vibe-coding --state open --search "Closes #{number} in:body" --json number,url,headRefName,author
+gh pr list --repo dvlprlife/NookPad --state open --search "Closes #{number} in:body" --json number,url,headRefName,author
 ```
 
 If no PR is found, post a note on the issue and skip to the next eligible issue (do not invent a PR):
 
 ```
-gh issue comment {number} --repo dvlprlife/vibe-coding --body "## Review Skipped
+gh issue comment {number} --repo dvlprlife/NookPad --body "## Review Skipped
 
 No open PR references this issue with \`Closes #{number}\`. Re-check once the worker opens the PR."
 ```
@@ -31,9 +31,9 @@ No open PR references this issue with \`Closes #{number}\`. Re-check once the wo
 Pull everything needed to compare the PR against the plan and the issue:
 
 ```
-gh issue view {issue_number} --repo dvlprlife/vibe-coding --comments
-gh pr view {pr_number} --repo dvlprlife/vibe-coding
-gh pr diff {pr_number} --repo dvlprlife/vibe-coding
+gh issue view {issue_number} --repo dvlprlife/NookPad --comments
+gh pr view {pr_number} --repo dvlprlife/NookPad
+gh pr diff {pr_number} --repo dvlprlife/NookPad
 ```
 
 From the issue, extract:
@@ -52,7 +52,7 @@ From the issue, extract:
 **If findings exist:** request changes. Fall back to a comment review if GitHub blocks `--request-changes` (e.g. same-author PRs):
 
 ```
-gh pr review {pr_number} --repo dvlprlife/vibe-coding --request-changes --body "## Automated Review
+gh pr review {pr_number} --repo dvlprlife/NookPad --request-changes --body "## Automated Review
 
 ### Findings
 {bulleted list of issues, each labeled by category: Plan / AC / Quality / CLAUDE.md, citing file paths and line numbers}
@@ -64,13 +64,13 @@ gh pr review {pr_number} --repo dvlprlife/vibe-coding --request-changes --body "
 If `--request-changes` fails:
 
 ```
-gh pr review {pr_number} --repo dvlprlife/vibe-coding --comment --body "..."
+gh pr review {pr_number} --repo dvlprlife/NookPad --comment --body "..."
 ```
 
 **If the PR looks good:** post a comment review (agents cannot self-approve):
 
 ```
-gh pr review {pr_number} --repo dvlprlife/vibe-coding --comment --body "## Automated Review
+gh pr review {pr_number} --repo dvlprlife/NookPad --comment --body "## Automated Review
 
 All four criteria satisfied:
 - Plan adherence: ✓
@@ -84,7 +84,7 @@ Ready for human approval."
 ## Step 6: Summarize on the Issue
 
 ```
-gh issue comment {issue_number} --repo dvlprlife/vibe-coding --body "## Review Summary
+gh issue comment {issue_number} --repo dvlprlife/NookPad --body "## Review Summary
 
 PR: {pr_url}
 
@@ -96,13 +96,13 @@ PR: {pr_url}
 **If findings were posted:** add `status: follow up` and `human`, remove `status: in-review`:
 
 ```
-gh issue edit {issue_number} --repo dvlprlife/vibe-coding --add-label "status: follow up" --add-label "human" --remove-label "status: in-review"
+gh issue edit {issue_number} --repo dvlprlife/NookPad --add-label "status: follow up" --add-label "human" --remove-label "status: in-review"
 ```
 
 **If the PR was clean:** add `status: agent approved`, remove `status: in-review`:
 
 ```
-gh issue edit {issue_number} --repo dvlprlife/vibe-coding --add-label "status: agent approved" --remove-label "status: in-review"
+gh issue edit {issue_number} --repo dvlprlife/NookPad --add-label "status: agent approved" --remove-label "status: in-review"
 ```
 
 ## Rules
