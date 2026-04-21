@@ -1,12 +1,14 @@
+# Replace USERNAME with your Linux user (the same value used for User= below).
+# Assumes the repo is cloned to /home/USERNAME/NookPad.
 [Unit]
-Description=Tasklist Dashboard
+Description=NookPad Dashboard
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 /home/brad/documents/vibe-coding/tasklist/server.py
-WorkingDirectory=/home/brad/documents/vibe-coding/tasklist
+ExecStart=/usr/bin/python3 /home/USERNAME/NookPad/server.py
+WorkingDirectory=/home/USERNAME/NookPad
 Restart=always
-User=brad
+User=USERNAME
 
 [Install]
 WantedBy=multi-user.target

@@ -1,11 +1,11 @@
 # Repo Check Agent
 
-You are an agent that ensures all required GitHub labels exist in the `dvlprlife/vibe-coding` repository.
+You are an agent that ensures all required GitHub labels exist in the `dvlprlife/NookPad` repository.
 
 ## Step 1: List Existing Labels
 
 ```
-gh label list --repo dvlprlife/vibe-coding --json name --limit 100
+gh label list --repo dvlprlife/NookPad --json name --limit 100
 ```
 
 ## Step 2: Check and Create Required Labels
@@ -14,14 +14,14 @@ For each label in the list below, check if it exists in the output from Step 1. 
 
 | Label | Color | Description | Create command |
 |-------|-------|-------------|----------------|
-| `agent` | `#0075ca` | Issue is assigned to an agent for automated processing | `gh label create "agent" --repo dvlprlife/vibe-coding --color "0075ca" --description "Issue is assigned to an agent for automated processing"` |
-| `status: ready` | `#0e8a16` | Issue is ready to be picked up | `gh label create "status: ready" --repo dvlprlife/vibe-coding --color "0e8a16" --description "Issue is ready to be picked up"` |
-| `status: in-progress` | `#e4e669` | Issue is currently being worked on | `gh label create "status: in-progress" --repo dvlprlife/vibe-coding --color "e4e669" --description "Issue is currently being worked on"` |
-| `status: in-review` | `#d93f0b` | Issue has an open PR awaiting review | `gh label create "status: in-review" --repo dvlprlife/vibe-coding --color "d93f0b" --description "Issue has an open PR awaiting review"` |
-| `status: follow up` | `#c5def5` | Needs follow-up after completion | `gh label create "status: follow up" --repo dvlprlife/vibe-coding --color "c5def5" --description "Needs follow-up after completion"` |
-| `human` | `#b60205` | Requires human attention or intervention | `gh label create "human" --repo dvlprlife/vibe-coding --color "b60205" --description "Requires human attention or intervention"` |
-| `status: need plan` | `#fbca04` | Issue needs a plan before work can begin | `gh label create "status: need plan" --repo dvlprlife/vibe-coding --color "fbca04" --description "Issue needs a plan before work can begin"` |
-| `status: agent approved` | `#2da44e` | PR reviewer agent found no issues; awaiting human approval | `gh label create "status: agent approved" --repo dvlprlife/vibe-coding --color "2da44e" --description "PR reviewer agent found no issues; awaiting human approval"` |
+| `agent` | `#0075ca` | Issue is assigned to an agent for automated processing | `gh label create "agent" --repo dvlprlife/NookPad --color "0075ca" --description "Issue is assigned to an agent for automated processing"` |
+| `status: ready` | `#0e8a16` | Issue is ready to be picked up | `gh label create "status: ready" --repo dvlprlife/NookPad --color "0e8a16" --description "Issue is ready to be picked up"` |
+| `status: in-progress` | `#e4e669` | Issue is currently being worked on | `gh label create "status: in-progress" --repo dvlprlife/NookPad --color "e4e669" --description "Issue is currently being worked on"` |
+| `status: in-review` | `#d93f0b` | Issue has an open PR awaiting review | `gh label create "status: in-review" --repo dvlprlife/NookPad --color "d93f0b" --description "Issue has an open PR awaiting review"` |
+| `status: follow up` | `#c5def5` | Needs follow-up after completion | `gh label create "status: follow up" --repo dvlprlife/NookPad --color "c5def5" --description "Needs follow-up after completion"` |
+| `human` | `#b60205` | Requires human attention or intervention | `gh label create "human" --repo dvlprlife/NookPad --color "b60205" --description "Requires human attention or intervention"` |
+| `status: need plan` | `#fbca04` | Issue needs a plan before work can begin | `gh label create "status: need plan" --repo dvlprlife/NookPad --color "fbca04" --description "Issue needs a plan before work can begin"` |
+| `status: agent approved` | `#2da44e` | PR reviewer agent found no issues; awaiting human approval | `gh label create "status: agent approved" --repo dvlprlife/NookPad --color "2da44e" --description "PR reviewer agent found no issues; awaiting human approval"` |
 
 ## Step 3: Report Results
 
