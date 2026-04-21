@@ -350,17 +350,38 @@ def _reassemble_ideas(preamble, blocks) -> str:
     return "\n\n".join(p for p in parts if p.strip()) + "\n"
 
 
-def edit_idea(idea_id: str, description: str, notes: str = ""):
-    """Update the description and notes of an existing idea, preserving date, parent, and sub-points."""
+def edit_idea(idea_id: str, description: str, notes: str = "", parent: str = ""):
+    """Update description, notes, and parent of an existing idea, preserving date and sub-points."""
     path = BASE / "ideas.md"
     preamble, blocks = _idea_blocks(path.read_text())
+
+    heading_re = re.compile(r"^## (\d+) \| (\d{4}-\d{2}-\d{2}) \| (.+?)(?:\s*\|\s*(\d*))?\s*$")
+    parents = {}
+    for heading, _ in blocks:
+        m = heading_re.match(heading)
+        if m:
+            parents[m.group(1)] = m.group(4) or ""
+    valid_ids = set(parents.keys())
+
+    # Cycle guard: parent must exist, not be self, and not be a descendant of idea_id.
+    if parent:
+        descendants = set()
+        stack = [idea_id]
+        while stack:
+            cur = stack.pop()
+            for cid, pid in parents.items():
+                if pid == cur and cid not in descendants:
+                    descendants.add(cid)
+                    stack.append(cid)
+        if parent == idea_id or parent in descendants or parent not in valid_ids:
+            parent = ""
+
     new_blocks = []
     for heading, body in blocks:
-        m = re.match(r"^## (\d+) \| (\d{4}-\d{2}-\d{2}) \| .+?(\s*\|\s*\d*)?\s*$", heading)
+        m = heading_re.match(heading)
         if m and m.group(1) == idea_id:
-            parent_seg = m.group(3) or " | "
+            parent_seg = f" | {parent}" if parent else " | "
             heading = f"## {m.group(1)} | {m.group(2)} | {description}{parent_seg}"
-            # Replace existing notes line or remove it; keep all other body lines
             body = [l for l in body if not l.startswith("notes: ")]
             if notes:
                 body = [f"notes: {notes}"] + body
@@ -954,6 +975,7 @@ def ideas_html():
         notes = html_escape(r.get("notes", ""))
         desc_js = r["desc"].replace("\\", "\\\\").replace("'", "\\'").replace('"', '&quot;').replace("`", "\\`")
         notes_js = r.get("notes", "").replace("\\", "\\\\").replace("'", "\\'").replace('"', '&quot;').replace("`", "\\`")
+        parent_js = html_escape(r.get("parent", ""))
         prefix = '<span class="subtask-indent">↳</span>' if indent else ""
         li_cls = ' class="sub-idea"' if indent else ""
         notes_html = f'<span class="idea-notes">{notes}</span>' if notes else ""
@@ -965,7 +987,7 @@ def ideas_html():
             f'{notes_html}'
             f'<span class="idea-date">{date}</span>'
             f'<span class="idea-actions">'
-            f'<button class="edit-btn" onclick="openEditIdea(\'{id_}\',\'{desc_js}\',\'{notes_js}\')" title="Edit idea">✎</button>'
+            f'<button class="edit-btn" onclick="openEditIdea(\'{id_}\',\'{desc_js}\',\'{notes_js}\',\'{parent_js}\')" title="Edit idea">✎</button>'
             f'<form method="POST" action="/delete-idea" style="display:inline">'
             f'<input type="hidden" name="id" value="{id_}">'
             f'<button type="submit" class="del-btn" title="Delete idea" onclick="return confirm(\'Delete this idea permanently?\')">✕</button>'
@@ -1034,6 +1056,9 @@ def ideas_html():
                 <label>Notes
                     <input type="text" name="notes" id="edit-idea-notes" placeholder="Optional notes">
                 </label>
+                <label>Parent Idea
+                    <select name="parent" id="edit-idea-parent">{parent_opts}</select>
+                </label>
                 <div class="modal-actions">
                     <button type="button" class="cancel-btn" onclick="document.getElementById('idea-edit-modal').classList.remove('open')">Cancel</button>
                     <button type="submit" class="submit-btn">Save</button>
@@ -1043,10 +1068,11 @@ def ideas_html():
     </div>
 
     <script>
-    function openEditIdea(id, desc, notes) {{
+    function openEditIdea(id, desc, notes, parent) {{
         document.getElementById('edit-idea-id').value = id;
         document.getElementById('edit-idea-desc').value = desc;
         document.getElementById('edit-idea-notes').value = notes || '';
+        document.getElementById('edit-idea-parent').value = parent || '';
         document.getElementById('idea-edit-modal').classList.add('open');
     }}
     </script>"""
@@ -1875,8 +1901,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             idea_id = get("id")
             description = get("description")
             notes = get("notes")
+            parent = get("parent")
             if idea_id and description:
-                edit_idea(idea_id, description, notes)
+                edit_idea(idea_id, description, notes, parent)
 
         elif path == "/delete-idea":
             idea_id = get("id")
