@@ -1458,13 +1458,13 @@ def dashboard_page():
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Dashboard</title>
+  <title>NookPad</title>
   <link rel="stylesheet" href="/style.css">
   <meta http-equiv="refresh" content="30">
 </head>
 <body>
   <header>
-    <h1>Dashboard</h1>
+    <h1>NookPad</h1>
     <span class="updated">updated {now}</span>
     {cheatsheet_links()}
   </header>
@@ -1494,7 +1494,7 @@ def cheatsheet_page(filename):
 </head>
 <body>
   <header>
-    <a href="/" class="back">← Dashboard</a>
+    <a href="/" class="back">← NookPad</a>
   </header>
   <main class="cheatsheet">
     {body}
@@ -1601,7 +1601,7 @@ def completed_tasks_page():
 </head>
 <body>
   <header>
-    <a href="/" class="back">← Dashboard</a>
+    <a href="/" class="back">← NookPad</a>
   </header>
   <main style="max-width:900px;margin:0 auto;">
     <div class="card">
@@ -1658,7 +1658,7 @@ def categories_page():
 </head>
 <body>
   <header>
-    <a href="/" class="back">← Dashboard</a>
+    <a href="/" class="back">← NookPad</a>
   </header>
   <main style="max-width:700px;margin:0 auto;">
     <div class="card">
