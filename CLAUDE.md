@@ -73,9 +73,9 @@
 - Add new store sections at the end if the store doesn't exist yet.
 - Removing a purchased item deletes the bullet; keep the store heading even if empty.
 
-## User Guide (`DASHBOARD.md`)
-- `DASHBOARD.md` is the user-facing guide for the dashboard.
-- **Always update `DASHBOARD.md` when dashboard functionality is added or changed** — new features, changed behavior, new endpoints, removed features, etc.
+## User Guide (`README.md`)
+- `README.md` is the user-facing guide for the dashboard.
+- **Always update `README.md` when dashboard functionality is added or changed** — new features, changed behavior, new endpoints, removed features, etc.
 
 ## Dashboard (`server.py`)
 - Serves a read/write dashboard at `http://localhost:6969`.

@@ -1,20 +1,41 @@
-# Dashboard User Guide
+# NookPad
 
-A live web dashboard that displays your tasks, shopping list, and ideas.
+A self-hosted web dashboard for tasks, shopping lists, and ideas — one Python file, no database.
 
-## Access
+## Features
 
-Open in any browser:
+- Tasks with priorities, due dates, overdue flagging, categories, sub-tasks, and a completed history.
+- Shopping list organised by store.
+- Ideas with sub-ideas and optional notes.
+- Category management page.
+- Cheatsheet viewer (any markdown file in `cheatsheets/` is rendered read-only).
+- Auto-refresh every 30 seconds; no build step, no database.
 
-```
-http://localhost:6969
-```
+## Requirements
 
-To reach the dashboard from other devices on your LAN, replace `localhost` with the host machine's IP address (e.g. `http://192.168.1.42:6969`).
+- Python 3 — standard library only, no `pip install` needed.
+- Linux with systemd if you want to install as a background service. The manual `python3` run works on any OS with Python 3.
 
-The page auto-refreshes every 30 seconds.
+## Installation
 
-## Starting & Stopping
+1. Clone the repo into your home directory:
+
+   ```
+   git clone https://github.com/dvlprlife/NookPad.git ~/NookPad
+   cd ~/NookPad
+   ```
+
+2. (Service install only) Edit `dashboard.service` and replace `USERNAME` with your Linux user on the `ExecStart`, `WorkingDirectory`, and `User=` lines.
+
+3. Install as a systemd service:
+
+   ```
+   sudo cp dashboard.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now dashboard
+   ```
+
+## Running
 
 The dashboard runs as a background service and starts automatically on boot.
 
@@ -49,16 +70,19 @@ python3 ~/NookPad/server.py
 
 To reattach later: `tmux attach -t dashboard`
 
-## Uninstalling the Service
+## Access
+
+Open in any browser:
 
 ```
-sudo systemctl stop dashboard
-sudo systemctl disable dashboard
-sudo rm /etc/systemd/system/dashboard.service
-sudo systemctl daemon-reload
+http://localhost:6969
 ```
 
-## Adding & Managing Items
+To reach the dashboard from other devices on your LAN, replace `localhost` with the host machine's IP address (e.g. `http://192.168.1.42:6969`).
+
+The page auto-refreshes every 30 seconds.
+
+## Usage
 
 Each panel has a **+ Add** button in the header to add new entries without editing the files directly.
 
@@ -106,11 +130,11 @@ Each panel has a **+ Add** button in the header to add new entries without editi
 - Any manual edits to those files will appear on the next refresh (within 30 seconds)
 - No build step or database required
 
-## Installing the Service (first time setup)
+## Uninstalling
 
 ```
-sudo cp ~/NookPad/dashboard.service /etc/systemd/system/
+sudo systemctl stop dashboard
+sudo systemctl disable dashboard
+sudo rm /etc/systemd/system/dashboard.service
 sudo systemctl daemon-reload
-sudo systemctl enable dashboard
-sudo systemctl start dashboard
 ```
