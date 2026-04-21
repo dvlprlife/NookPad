@@ -51,6 +51,15 @@
 | `Prefix + }` | Move pane right |
 | `Prefix + Space` | Toggle pane layouts |
 
+### Resizing Panes
+Open the tmux command prompt with `Prefix + :` then enter a `resize-pane` command.
+
+| Command | Description |
+|---------|-------------|
+| `resize-pane -D 10` | Resize down by 10 cells (use `-U`, `-L`, `-R` for up/left/right) |
+| `resize-pane -y 25%` | Set height to 25% of the window (use `-x` for width) |
+| `resize-pane -t 1 -R 20` | Resize pane #1 to the right by 20 cells |
+
 ### Copy Mode
 | Command | Description |
 |---------|-------------|
