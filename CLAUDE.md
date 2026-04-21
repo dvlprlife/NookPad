@@ -1,4 +1,4 @@
-# Task List Instructions
+# NookPad Instructions
 
 ## GitHub Workflow
 - **Before starting any change**: Draft the issue title and body, then show it to the user for review and approval before creating it. The issue must be detailed enough to be worked on independently — include what is changing, why, and any relevant context or acceptance criteria.

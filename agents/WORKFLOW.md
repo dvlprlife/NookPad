@@ -1,6 +1,6 @@
 # Agent Workflow
 
-This document describes the full lifecycle of an issue through the agent system for the `dvlprlife/vibe-coding` repository.
+This document describes the full lifecycle of an issue through the agent system for the `dvlprlife/NookPad` repository.
 
 ## Agents
 
