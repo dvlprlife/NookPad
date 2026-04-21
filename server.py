@@ -12,6 +12,28 @@ BASE = Path(__file__).parent / "lists"
 CHEATSHEETS_DIR = Path(__file__).parent / "cheatsheets"
 PORT = 6969
 
+NOTEPAD_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" '
+    'width="{size}" height="{size}" fill="none" stroke="currentColor" '
+    'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" '
+    'aria-hidden="true" class="nookpad-icon">'
+    '<rect x="4" y="5" width="16" height="16" rx="2"/>'
+    '<line x1="8" y1="11" x2="16" y2="11"/>'
+    '<line x1="8" y1="14" x2="16" y2="14"/>'
+    '<line x1="8" y1="17" x2="14" y2="17"/>'
+    '<circle cx="9" cy="5" r="1.3"/>'
+    '<circle cx="15" cy="5" r="1.3"/>'
+    '</svg>'
+)
+
+
+def notepad_icon(size_px: int) -> str:
+    return NOTEPAD_SVG.format(size=size_px)
+
+
+FAVICON_SVG = NOTEPAD_SVG.format(size=32)
+FAVICON_LINK = '<link rel="icon" type="image/svg+xml" href="/favicon.svg">'
+
 
 _FILE_DEFAULTS = {
     "tasks.md": (
@@ -1062,6 +1084,10 @@ header {
     margin-bottom: 1.5rem;
     flex-wrap: wrap;
 }
+.nookpad-icon {
+    vertical-align: -0.15em;
+    flex-shrink: 0;
+}
 h1 {
     font-size: 1.4rem;
     font-weight: 700;
@@ -1460,11 +1486,12 @@ def dashboard_page():
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>NookPad</title>
   <link rel="stylesheet" href="/style.css">
+  {FAVICON_LINK}
   <meta http-equiv="refresh" content="30">
 </head>
 <body>
   <header>
-    <h1>NookPad</h1>
+    <h1>{notepad_icon(28)} NookPad</h1>
     <span class="updated">updated {now}</span>
     {cheatsheet_links()}
   </header>
@@ -1491,10 +1518,11 @@ def cheatsheet_page(filename):
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{title}</title>
   <link rel="stylesheet" href="/style.css">
+  {FAVICON_LINK}
 </head>
 <body>
   <header>
-    <a href="/" class="back">← NookPad</a>
+    <a href="/" class="back">← {notepad_icon(18)} NookPad</a>
   </header>
   <main class="cheatsheet">
     {body}
@@ -1598,10 +1626,11 @@ def completed_tasks_page():
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Completed Tasks</title>
   <link rel="stylesheet" href="/style.css">
+  {FAVICON_LINK}
 </head>
 <body>
   <header>
-    <a href="/" class="back">← NookPad</a>
+    <a href="/" class="back">← {notepad_icon(18)} NookPad</a>
   </header>
   <main style="max-width:900px;margin:0 auto;">
     <div class="card">
@@ -1655,10 +1684,11 @@ def categories_page():
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Categories</title>
   <link rel="stylesheet" href="/style.css">
+  {FAVICON_LINK}
 </head>
 <body>
   <header>
-    <a href="/" class="back">← NookPad</a>
+    <a href="/" class="back">← {notepad_icon(18)} NookPad</a>
   </header>
   <main style="max-width:700px;margin:0 auto;">
     <div class="card">
@@ -1740,6 +1770,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             body = CSS.encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/css; charset=utf-8")
+            self.send_header("Content-Length", len(body))
+            self.send_header("Cache-Control", "max-age=3600")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        if path == "/favicon.svg":
+            body = FAVICON_SVG.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "image/svg+xml; charset=utf-8")
             self.send_header("Content-Length", len(body))
             self.send_header("Cache-Control", "max-age=3600")
             self.end_headers()
