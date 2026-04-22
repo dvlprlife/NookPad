@@ -5,7 +5,7 @@ import http.server
 import re
 import socketserver
 import urllib.parse
-from datetime import date as date_cls, datetime
+from datetime import date as date_cls, datetime, timedelta
 from pathlib import Path
 
 BASE = Path(__file__).parent / "lists"
@@ -1088,6 +1088,7 @@ def ideas_html():
 
 def cheatsheet_links():
     links = '<a href="/completed" class="nav-link">Completed Tasks</a>'
+    links += '<a href="/agenda" class="nav-link">Agenda</a>'
     links += '<a href="/categories" class="nav-link">Categories</a>'
     for path in sorted(CHEATSHEETS_DIR.glob("*.md")):
         label = path.stem.replace("-cheatsheet", "").replace("-", " ").title()
@@ -1395,6 +1396,18 @@ tr.cat-header:hover td { background: #1e4a7a; color: #e0f2fe; }
 .cat-caret { display: inline-block; width: 0.9rem; color: #7dd3fc; font-size: 0.7rem; }
 .cat-count { color: #64748b; font-size: 0.7rem; margin-left: 0.35rem; font-weight: 500; text-transform: none; }
 tbody.cat-group.collapsed tr:not(.cat-header) { display: none; }
+.agenda-heading {
+    margin: 1.25rem 0 0.4rem;
+    font-size: 0.95rem;
+    color: #7dd3fc;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.agenda-heading:first-of-type { margin-top: 0.25rem; }
+.agenda-count { color: #64748b; font-size: 0.75rem; margin-left: 0.35rem; font-weight: 500; }
+.agenda-table { width: 100%; }
+.agenda-cat { color: #64748b; font-size: 0.75rem; margin-left: 0.4rem; text-transform: uppercase; letter-spacing: 0.04em; }
 .shop-item { flex: 1; }
 .card ul li { display: flex; align-items: center; gap: 0.5rem; }
 
@@ -1687,6 +1700,113 @@ def completed_tasks_page():
 </html>"""
 
 
+def agenda_page():
+    _, active, _ = _parse_active(read("tasks.md"))
+    today = date_cls.today()
+    window_end = today + timedelta(days=13)
+
+    def priority_badge(p):
+        if not p or p == "None":
+            return ""
+        cls = {"High": "high", "Medium": "medium", "Low": "low"}.get(p, "")
+        return f'<span class="badge {cls}">{p}</span>'
+
+    priority_rank = {"High": 0, "Medium": 1, "Low": 2}
+
+    def sort_key(r):
+        return (priority_rank.get(r.get("Priority", ""), 3), r.get("Task", "").lower())
+
+    overdue, today_tasks, tomorrow_tasks, unscheduled = [], [], [], []
+    by_day = {}
+    tomorrow = today + timedelta(days=1)
+
+    for r in active:
+        due_raw = r.get("Due Date", "").strip()
+        if not due_raw:
+            unscheduled.append(r)
+            continue
+        try:
+            d = date_cls.fromisoformat(due_raw.split()[0])
+        except ValueError:
+            unscheduled.append(r)
+            continue
+        if d < today:
+            overdue.append(r)
+        elif d == today:
+            today_tasks.append(r)
+        elif d == tomorrow:
+            tomorrow_tasks.append(r)
+        elif d <= window_end:
+            by_day.setdefault(d, []).append(r)
+
+    def make_row(r):
+        priority = r.get("Priority", "Medium")
+        task_text = html_escape(r.get("Task", ""))
+        category = html_escape(r.get("Category", "").strip())
+        cat_span = f'<span class="agenda-cat">{category}</span>' if category else ""
+        due_raw = r.get("Due Date", "").strip()
+        due_display = html_escape(due_raw.replace(" 00:00", "")) if due_raw else ""
+        return (
+            f'<tr>'
+            f'<td>{priority_badge(priority)}</td>'
+            f'<td>{task_text} {cat_span}</td>'
+            f'<td class="due">{due_display}</td>'
+            f'</tr>'
+        )
+
+    def render_group(title, rows, sort_overdue=False):
+        if not rows:
+            return ""
+        if sort_overdue:
+            rows = sorted(rows, key=lambda r: (r.get("Due Date", ""), *sort_key(r)))
+        else:
+            rows = sorted(rows, key=sort_key)
+        body = "".join(make_row(r) for r in rows)
+        return (
+            f'<h3 class="agenda-heading">{title} '
+            f'<span class="agenda-count">{len(rows)}</span></h3>'
+            f'<table class="agenda-table"><tbody>{body}</tbody></table>'
+        )
+
+    sections = []
+    sections.append(render_group("Overdue", overdue, sort_overdue=True))
+    sections.append(render_group(f"Today ({today.strftime('%a %b %d')})", today_tasks))
+    sections.append(render_group(
+        f"Tomorrow ({tomorrow.strftime('%a %b %d')})", tomorrow_tasks
+    ))
+    for offset in range(2, 14):
+        d = today + timedelta(days=offset)
+        if d in by_day:
+            sections.append(render_group(d.strftime('%a %b %d'), by_day[d]))
+    sections.append(render_group("Unscheduled", unscheduled))
+
+    body_html = "".join(sections)
+    if not body_html:
+        body_html = '<p class="empty"><em>Nothing scheduled in the next 14 days.</em></p>'
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agenda</title>
+  <link rel="stylesheet" href="/style.css">
+  {FAVICON_LINK}
+</head>
+<body>
+  <header>
+    <a href="/" class="back">← {notepad_icon(18)} NookPad</a>
+  </header>
+  <main style="max-width:800px;margin:0 auto;">
+    <div class="card">
+      <h2>Agenda</h2>
+      {body_html}
+    </div>
+  </main>
+</body>
+</html>"""
+
+
 def categories_page():
     cats = load_categories()
     _, active_tasks, _ = _parse_active(read("tasks.md"))
@@ -1832,6 +1952,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             body = dashboard_page().encode()
         elif path == "/completed":
             body = completed_tasks_page().encode()
+        elif path == "/agenda":
+            body = agenda_page().encode()
         elif path == "/categories":
             body = categories_page().encode()
         elif path.startswith("/cheatsheet/"):
