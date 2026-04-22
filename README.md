@@ -108,6 +108,12 @@ Each panel has a **+ Add** button in the header to add new entries without editi
 - **↩** moves the task back to the active list, re-evaluating its overdue status based on the original due date
 - **✕** permanently removes the completed task — a confirmation dialog appears first
 
+### Agenda
+- Click the **Agenda** link in the header to open a read-only view of upcoming work
+- Active tasks are grouped into sections: **Overdue**, **Today**, **Tomorrow**, then each of the next 12 days, and finally **Unscheduled** for tasks without a due date
+- Sections with no tasks are omitted; `Overdue` sorts oldest due-date first, all other sections sort by priority (High → Medium → Low) then task name
+- No edit or complete controls — use the main dashboard to act on a task
+
 ### Shopping
 - Click **+ Add** in the Shopping panel to open the form
 - Fields: Store (autocompletes existing stores), Item
