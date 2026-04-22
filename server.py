@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Dashboard server — reads tasks.md, shopping.md, ideas.md and serves HTML."""
 
+import calendar
 import http.server
 import re
 import socketserver
@@ -45,11 +46,11 @@ FAVICON_LINK = '<link rel="icon" type="image/svg+xml" href="/favicon.svg">'
 
 _FILE_DEFAULTS = {
     "tasks.md": (
-        "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Category** | **Parent** | **ID** |\n"
-        "|-------|------------|--------------|--------------|----------|-----------|---|--------|----|\n"
+        "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Category** | **Parent** | **ID** | **Recur** |\n"
+        "|-------|------------|--------------|--------------|----------|-----------|---|--------|----|-------|\n"
         "\n## Completed Tasks\n\n"
-        "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Category** | **Parent** | **ID** | **Date Completed** |\n"
-        "|-------|------------|--------------|--------------|----------|-----------|---|--------|----|-----------|\n"
+        "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Category** | **Parent** | **ID** | **Recur** | **Date Completed** |\n"
+        "|-------|------------|--------------|--------------|----------|-----------|---|--------|----|-------|-----------|\n"
     ),
     "ideas.md": "# Ideas\n",
     "notes.md": "# Notes\n",
@@ -174,6 +175,7 @@ def md_to_html(text):
 
 PRIORITY_ORDER = {"High": 0, "Medium": 1, "Low": 2, "None": 3}
 VALID_PRIORITIES = {"High", "Medium", "Low", "None"}
+VALID_RECUR = {"", "daily", "weekly", "monthly", "yearly"}
 
 
 def html_escape(text: str) -> str:
@@ -184,8 +186,8 @@ def html_escape(text: str) -> str:
             .replace('"', "&quot;"))
 
 
-COL_HEADER = "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Category** | **Parent** | **ID** |"
-COL_SEP    = "|---|--------|----------|----------|------|-------|---|---|---|"
+COL_HEADER = "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Category** | **Parent** | **ID** | **Recur** |"
+COL_SEP    = "|---|--------|----------|----------|------|-------|---|---|---|---|"
 
 
 def _parse_active(content: str):
@@ -229,6 +231,7 @@ def _parse_active(content: str):
                 "Category": cols[6] if len(cols) > 6 else "",
                 "Parent": cols[7] if len(cols) > 7 else "",
                 "ID": cols[8] if len(cols) > 8 else "",
+                "Recur": cols[9] if len(cols) > 9 else "",
             })
     return header_lines, rows, completed_section
 
@@ -249,6 +252,37 @@ def _next_task_id(rows, completed_section: str) -> int:
             except ValueError:
                 pass
     return max(ids, default=0) + 1
+
+
+def _next_recur_due(due_date: str, recur: str) -> str:
+    """Compute the next Due Date for a recurring task.
+
+    Handles month-end clamping (Jan 31 monthly → Feb 28/29) and Feb 29 yearly
+    rollover on non-leap years (→ Feb 28). Preserves the HH:MM portion.
+    Returns the formatted string `YYYY-MM-DD HH:MM`.
+    """
+    parts = due_date.split()
+    date_part = parts[0]
+    time_part = parts[1] if len(parts) > 1 else "00:00"
+    y, mo, d = (int(x) for x in date_part.split("-"))
+    if recur == "daily":
+        nxt = date_cls(y, mo, d) + timedelta(days=1)
+        y, mo, d = nxt.year, nxt.month, nxt.day
+    elif recur == "weekly":
+        nxt = date_cls(y, mo, d) + timedelta(days=7)
+        y, mo, d = nxt.year, nxt.month, nxt.day
+    elif recur == "monthly":
+        mo += 1
+        if mo > 12:
+            mo = 1
+            y += 1
+        last = calendar.monthrange(y, mo)[1]
+        d = min(d, last)
+    elif recur == "yearly":
+        y += 1
+        last = calendar.monthrange(y, mo)[1]
+        d = min(d, last)
+    return f"{y:04d}-{mo:02d}-{d:02d} {time_part}"
 
 
 def _sync_parent_due_dates(rows):
@@ -288,7 +322,7 @@ def _render_active(header_lines, rows) -> str:
     lines = header_lines + [COL_HEADER, COL_SEP]
     for i, r in enumerate(rows, 1):
         lines.append(
-            f"| {i} | {r['Status']} | {r['Priority']} | {r['Due Date']} | {r['Task']} | {r['Notes']} | {r.get('Category', '')} | {r.get('Parent', '')} | {r.get('ID', '')} |"
+            f"| {i} | {r['Status']} | {r['Priority']} | {r['Due Date']} | {r['Task']} | {r['Notes']} | {r.get('Category', '')} | {r.get('Parent', '')} | {r.get('ID', '')} | {r.get('Recur', '')} |"
         )
     return "\n".join(lines) + "\n"
 
@@ -498,7 +532,11 @@ def add_shopping_item(store: str, item: str):
 
 
 def complete_task(task_num: int):
-    """Move a task from active to the Completed Tasks section."""
+    """Move a task from active to the Completed Tasks section.
+
+    If the task is recurring (non-empty Recur), also append a fresh active row
+    with the next computed Due Date and a new ID.
+    """
     path = BASE / "tasks.md"
     header_lines, rows, completed_section = _parse_active(path.read_text())
 
@@ -507,19 +545,57 @@ def complete_task(task_num: int):
         return
 
     remaining = [r for r in rows if id(r) != id(found)]
+
+    # If the completed task was recurring, schedule the next instance.
+    recur = found.get("Recur", "")
+    if recur in VALID_RECUR and recur:
+        try:
+            next_due = _next_recur_due(found["Due Date"], recur)
+            next_id = str(_next_task_id(remaining + [found], completed_section))
+            today_d = date_cls.today()
+            try:
+                due_d = date_cls.fromisoformat(next_due.split()[0])
+                next_status = "⚠️" if due_d < today_d else "&nbsp;"
+            except ValueError:
+                next_status = "&nbsp;"
+            remaining.append({
+                "#": "",
+                "Status": next_status,
+                "Priority": found.get("Priority", "Medium"),
+                "Due Date": next_due,
+                "Task": found.get("Task", ""),
+                "Notes": found.get("Notes", ""),
+                "Category": found.get("Category", ""),
+                "Parent": found.get("Parent", ""),
+                "ID": next_id,
+                "Recur": recur,
+            })
+            remaining.sort(key=lambda r: (r["Due Date"], PRIORITY_ORDER.get(r["Priority"], 99)))
+        except (ValueError, IndexError):
+            pass
+
     new_content = _render_active(header_lines, remaining)
 
-    if not completed_section:
-        completed_section = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Category** | **Parent** | **ID** | **Date Completed** |\n|---|---|---|---|---|---|---|---|---|---|\n"
-
-    existing_comp = parse_md_table(completed_section.split("## Completed Tasks", 1)[1])
+    existing_comp = parse_md_table(completed_section.split("## Completed Tasks", 1)[1]) if completed_section else []
     today = date_cls.today().isoformat()
-    next_num = len(existing_comp) + 1
+    existing_comp.append({
+        "Status": "✅",
+        "Priority": found.get("Priority", ""),
+        "Due Date": found.get("Due Date", ""),
+        "Task": found.get("Task", ""),
+        "Notes": found.get("Notes", ""),
+        "Category": found.get("Category", ""),
+        "Parent": found.get("Parent", ""),
+        "ID": found.get("ID", ""),
+        "Recur": found.get("Recur", ""),
+        "Date Completed": today,
+    })
 
-    new_rows_text = f"| {next_num} | ✅ | {found['Priority']} | {found['Due Date']} | {found['Task']} | {found['Notes']} | {found.get('Category', '')} | {found.get('Parent', '')} | {found.get('ID', '')} | {today} |\n"
-
-    completed_section = completed_section.rstrip("\n") + "\n" + new_rows_text
-    path.write_text(new_content + "\n" + completed_section)
+    header = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Category** | **Parent** | **ID** | **Recur** | **Date Completed** |\n|---|---|---|---|---|---|---|---|---|---|---|\n"
+    rows_text = ""
+    for i, r in enumerate(existing_comp, 1):
+        rows_text += f"| {i} | {r.get('Status','✅')} | {r.get('Priority','')} | {r.get('Due Date','')} | {r.get('Task','')} | {r.get('Notes','')} | {r.get('Category','')} | {r.get('Parent','')} | {r.get('ID','')} | {r.get('Recur','')} | {r.get('Date Completed','')} |\n"
+    path.write_text(new_content + "\n" + header + rows_text)
 
 
 def delete_task(task_num: int):
@@ -548,10 +624,10 @@ def reopen_completed_task(task_num: int):
     kept = [r for r in comp_rows if r is not found]
 
     # Rebuild completed section
-    header = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Category** | **Parent** | **ID** | **Date Completed** |\n|---|---|---|---|---|---|---|---|---|---|\n"
+    header = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Category** | **Parent** | **ID** | **Recur** | **Date Completed** |\n|---|---|---|---|---|---|---|---|---|---|---|\n"
     rows_text = ""
     for i, r in enumerate(kept, 1):
-        rows_text += f"| {i} | {r.get('Status','✅')} | {r.get('Priority','')} | {r.get('Due Date','')} | {r.get('Task','')} | {r.get('Notes','')} | {r.get('Category','')} | {r.get('Parent','')} | {r.get('ID','')} | {r.get('Date Completed','')} |\n"
+        rows_text += f"| {i} | {r.get('Status','✅')} | {r.get('Priority','')} | {r.get('Due Date','')} | {r.get('Task','')} | {r.get('Notes','')} | {r.get('Category','')} | {r.get('Parent','')} | {r.get('ID','')} | {r.get('Recur','')} | {r.get('Date Completed','')} |\n"
     new_completed = header + rows_text
 
     # Re-add to active list
@@ -573,6 +649,7 @@ def reopen_completed_task(task_num: int):
         "Category": found.get("Category", ""),
         "Parent": found.get("Parent", ""),
         "ID": found.get("ID", ""),
+        "Recur": found.get("Recur", ""),
     }
     rows.append(new_row)
     rows.sort(key=lambda r: (r["Due Date"], PRIORITY_ORDER.get(r["Priority"], 99)))
@@ -593,17 +670,19 @@ def delete_completed_task(task_num: int):
     if len(kept) == len(comp_rows):
         return  # nothing removed
     # Rebuild completed section with renumbered rows
-    header = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Category** | **Parent** | **ID** | **Date Completed** |\n|---|---|---|---|---|---|---|---|---|---|\n"
+    header = "## Completed Tasks\n\n| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Category** | **Parent** | **ID** | **Recur** | **Date Completed** |\n|---|---|---|---|---|---|---|---|---|---|---|\n"
     rows_text = ""
     for i, r in enumerate(kept, 1):
-        rows_text += f"| {i} | {r.get('Status','✅')} | {r.get('Priority','')} | {r.get('Due Date','')} | {r.get('Task','')} | {r.get('Notes','')} | {r.get('Category','')} | {r.get('Parent','')} | {r.get('ID','')} | {r.get('Date Completed','')} |\n"
+        rows_text += f"| {i} | {r.get('Status','✅')} | {r.get('Priority','')} | {r.get('Due Date','')} | {r.get('Task','')} | {r.get('Notes','')} | {r.get('Category','')} | {r.get('Parent','')} | {r.get('ID','')} | {r.get('Recur','')} | {r.get('Date Completed','')} |\n"
     path.write_text(active_part + header + rows_text)
 
 
-def edit_task(task_num: int, due_date: str, task: str, notes: str, priority: str, parent: str = "", category: str = ""):
+def edit_task(task_num: int, due_date: str, task: str, notes: str, priority: str, parent: str = "", category: str = "", recur: str = ""):
     """Update a task's fields in-place, re-sort, and save."""
     if priority not in VALID_PRIORITIES:
         priority = "Medium"
+    if recur not in VALID_RECUR:
+        recur = ""
     path = BASE / "tasks.md"
     header_lines, rows, completed_section = _parse_active(path.read_text())
     # Validate parent ID exists and isn't the task itself
@@ -625,6 +704,7 @@ def edit_task(task_num: int, due_date: str, task: str, notes: str, priority: str
             r["Priority"] = priority
             r["Parent"] = parent
             r["Category"] = category
+            r["Recur"] = recur
             break
     _sync_parent_due_dates(rows)
     rows.sort(key=lambda r: (r["Due Date"], PRIORITY_ORDER.get(r["Priority"], 99)))
@@ -648,10 +728,12 @@ def remove_shopping_item(store: str, item: str):
     path.write_text("\n".join(new_lines) + "\n")
 
 
-def add_task(due_date: str, task: str, notes: str, priority: str = "Medium", parent: str = "", category: str = ""):
+def add_task(due_date: str, task: str, notes: str, priority: str = "Medium", parent: str = "", category: str = "", recur: str = ""):
     """Append a task to tasks.md, re-sort active tasks, renumber, and save."""
     if priority not in VALID_PRIORITIES:
         priority = "Medium"
+    if recur not in VALID_RECUR:
+        recur = ""
 
     path = BASE / "tasks.md"
     header_lines, rows, completed_section = _parse_active(path.read_text())
@@ -669,7 +751,7 @@ def add_task(due_date: str, task: str, notes: str, priority: str = "Medium", par
         parent = ""
 
     new_id = str(_next_task_id(rows, completed_section))
-    rows.append({"#": "", "Status": status, "Priority": priority, "Due Date": due_date, "Task": task, "Notes": notes, "Category": category, "Parent": parent, "ID": new_id})
+    rows.append({"#": "", "Status": status, "Priority": priority, "Due Date": due_date, "Task": task, "Notes": notes, "Category": category, "Parent": parent, "ID": new_id, "Recur": recur})
     _sync_parent_due_dates(rows)
     rows.sort(key=lambda r: (r["Due Date"], PRIORITY_ORDER.get(r["Priority"], 99)))
 
@@ -790,6 +872,9 @@ def tasks_html():
         notes_js = r.get("Notes", "").replace("\\", "\\\\").replace("'", "\\'").replace('"', '&quot;').replace("`", "\\`")
         parent_id_js = html_escape(r.get("Parent", ""))
         category_js = html_escape(r.get("Category", ""))
+        recur = r.get("Recur", "")
+        recur_js = html_escape(recur)
+        recur_badge = f' <span class="recur-badge" title="{recur.capitalize()}">↻</span>' if recur else ""
         indent_prefix = '<span class="subtask-indent">↳</span>' if indent else ""
         priority_cell = "" if is_parent else priority_badge(priority)
         classes = [cls]
@@ -802,12 +887,12 @@ def tasks_html():
             <td>{icon}</td>
             <td>{priority_cell}</td>
             <td class="due">{due}</td>
-            <td>{indent_prefix}{task_text}</td>
+            <td>{indent_prefix}{task_text}{recur_badge}</td>
             <td class="notes">{notes_text}</td>
             <td class="action-cell">
                 <form method="POST" action="/complete-task" style="display:inline"><input type="hidden" name="num" value="{num}"><button type="submit" class="done-btn" title="Mark complete">✓</button></form>
                 <span class="task-hover-actions">
-                    <button type="button" class="edit-btn" title="Edit task" onclick="openEditTask('{num}','{task_js}','{notes_js}','{due_date_val}','{priority}','{parent_id_js}','{category_js}')">✎</button>
+                    <button type="button" class="edit-btn" title="Edit task" onclick="openEditTask('{num}','{task_js}','{notes_js}','{due_date_val}','{priority}','{parent_id_js}','{category_js}','{recur_js}')">✎</button>
                     <form method="POST" action="/delete-task" style="display:inline"><input type="hidden" name="num" value="{num}"><button type="submit" class="del-btn" title="Delete task" onclick="return confirm('Delete this task permanently?')">✕</button></form>
                 </span>
             </td>
@@ -918,6 +1003,15 @@ def tasks_html():
                 <label>Parent Task
                     <select name="parent">{parent_opts}</select>
                 </label>
+                <label>Recur
+                    <select name="recur">
+                        <option value="">None</option>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="yearly">Yearly</option>
+                    </select>
+                </label>
                 <div class="modal-actions">
                     <button type="button" class="cancel-btn" onclick="document.getElementById('task-modal').classList.remove('open')">Cancel</button>
                     <button type="submit" class="submit-btn">Add Task</button>
@@ -954,6 +1048,15 @@ def tasks_html():
                 <label>Parent Task
                     <select name="parent" id="edit-task-parent">{parent_opts}</select>
                 </label>
+                <label>Recur
+                    <select name="recur" id="edit-task-recur">
+                        <option value="">None</option>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="yearly">Yearly</option>
+                    </select>
+                </label>
                 <div class="modal-actions">
                     <button type="button" class="cancel-btn" onclick="document.getElementById('task-edit-modal').classList.remove('open')">Cancel</button>
                     <button type="submit" class="submit-btn">Save</button>
@@ -963,7 +1066,7 @@ def tasks_html():
     </div>
 
     <script>
-    function openEditTask(num, task, notes, due, priority, parentId, category) {{
+    function openEditTask(num, task, notes, due, priority, parentId, category, recur) {{
         document.getElementById('edit-task-num').value = num;
         document.getElementById('edit-task-task').value = task;
         document.getElementById('edit-task-notes').value = notes;
@@ -971,6 +1074,7 @@ def tasks_html():
         document.getElementById('edit-task-priority').value = priority;
         document.getElementById('edit-task-parent').value = parentId || '';
         document.getElementById('edit-task-category').value = category || '';
+        document.getElementById('edit-task-recur').value = recur || '';
         document.getElementById('task-edit-modal').classList.add('open');
     }}
     function toggleCategory(headerTr) {{
@@ -1440,6 +1544,7 @@ tr:hover .task-hover-actions { opacity: 1; }
 tr.subtask td { background: #182032; }
 tr.subtask td:first-child { color: #64748b; }
 .subtask-indent { color: #475569; margin-right: 0.35rem; font-size: 0.8rem; }
+.recur-badge { margin-left: 0.3rem; color: #6b7280; font-size: 0.85em; }
 tr.parent-task td { background: #141c2b; color: #94a3b8; }
 tr.parent-task td:first-child { color: #475569; }
 tr.parent-task .due { color: #64748b; }
@@ -2165,8 +2270,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             priority = get("priority", "Medium")
             parent = get("parent")
             category = get("category")
+            recur = get("recur", "")
             if due_raw and task:
-                add_task(due_raw + " 00:00", task, notes, priority, parent, category)
+                add_task(due_raw + " 00:00", task, notes, priority, parent, category, recur)
 
         elif path == "/add-shopping":
             store = get("store")
@@ -2192,8 +2298,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             priority = get("priority", "Medium")
             parent = get("parent", "")
             category = get("category", "")
+            recur = get("recur", "")
             if num.isdigit() and due_raw and task:
-                edit_task(int(num), due_raw + " 00:00", task, notes, priority, parent, category)
+                edit_task(int(num), due_raw + " 00:00", task, notes, priority, parent, category, recur)
 
         elif path == "/complete-shopping":
             store = get("store")
