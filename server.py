@@ -1471,6 +1471,7 @@ tbody.cat-group.collapsed tr:not(.cat-header) { display: none; }
 .agenda-count { color: #64748b; font-size: 0.75rem; margin-left: 0.35rem; font-weight: 500; }
 .agenda-table { width: 100%; }
 .agenda-cat { color: #64748b; font-size: 0.75rem; margin-left: 0.4rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.shop-item { flex: 1; }
 .notes-list { display: flex; flex-direction: column; gap: 0.65rem; }
 .note-card { padding: 0.75rem 0.9rem; border-radius: 6px; background: #0f172a; border: 1px solid #1e293b; position: relative; }
 .note-card:hover { border-color: #334155; }
@@ -1780,6 +1781,7 @@ def notes_page():
         body_html = html_escape(n["body"])
         body_js = (
             n["body"]
+            .replace("&", "&amp;")
             .replace("\\", "\\\\")
             .replace("'", "\\'")
             .replace('"', "&quot;")
