@@ -4,7 +4,7 @@ A self-hosted web dashboard for tasks, shopping lists, and ideas — one Python 
 
 ## Features
 
-- Tasks with priorities, due dates, overdue flagging, categories, sub-tasks, and a completed history.
+- Tasks with priorities, due dates, overdue flagging, categories, sub-tasks, recurring schedules, and a completed history.
 - Shopping list organised by store.
 - Ideas with sub-ideas and optional notes.
 - Quick-capture notes on a dedicated page.
@@ -89,13 +89,14 @@ Each panel has a **+ Add** button in the header to add new entries without editi
 
 ### Tasks
 - Click **+ Add** in the Tasks panel to open the form
-- Fields: Due Date, Priority (High / Medium / Low), Category (optional), Task, Notes, Parent Task (optional)
+- Fields: Due Date, Priority (High / Medium / Low), Category (optional), Task, Notes, Parent Task (optional), Recur (None / Daily / Weekly / Monthly / Yearly)
 - Select a **Parent Task** to create a sub-task — it will appear indented (↳) directly below its parent in the list
 - When a sub-task is added or edited, the parent task's due date automatically updates to the earliest due date among all its sub-tasks
 - Tasks are grouped by **Category** in the panel — groups are ordered by each category's Sort Order (ascending), with ties broken alphabetically by description. Tasks without a category appear under a **None** group that always sorts last
 - Sub-tasks stay under their parent's group regardless of their own category
 - Click a category header to collapse or expand that group's rows; all groups start expanded on page load
 - Click the **✓** button on any task row to mark it complete — it moves to the Completed Tasks section in `tasks.md` with today's date
+- If the completed task has a **Recur** value, a new active row is also created with the next due date computed from the recurrence (e.g. `daily` adds one day; `monthly` clamps Jan 31 → Feb 28/29). Recurring tasks display a small `↻` indicator next to the task name
 - Sub-tasks appear indented (↳) under their parent on the Completed Tasks page as well
 - Hover over any task row to reveal the **✎** (edit) and **✕** (delete) buttons
 - **✎** opens an edit modal pre-filled with the task's due date, priority, category, name, notes, and parent task

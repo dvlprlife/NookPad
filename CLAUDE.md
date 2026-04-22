@@ -30,6 +30,7 @@
 | `Category` | Category code from `categories.md`; blank if uncategorized |
 | `Parent` | Internal `ID` of the parent task if this is a sub-task; blank for top-level tasks |
 | `ID` | Permanent internal identifier. Assigned at creation, never changes, never reused |
+| `Recur` | Recurrence preset. Accepted values: blank (one-off), `daily`, `weekly`, `monthly`, `yearly` |
 
 ## Formatting
 - Column headings must be **bold** using `**heading**` syntax.
@@ -37,7 +38,7 @@
 - Renumber `#` sequentially after any sort. `Parent` and `ID` values are never renumbered.
 
 ## Column Order
-`#` | `Status` | `Priority` | `Due Date` | `Task` | `Notes` | `Category` | `Parent` | `ID`
+`#` | `Status` | `Priority` | `Due Date` | `Task` | `Notes` | `Category` | `Parent` | `ID` | `Recur`
 
 ## Sub-tasks
 - A sub-task has its parent's `ID` in the `Parent` column.
@@ -47,6 +48,7 @@
 ## Rules
 - **Adding a task**: Append a new row, increment `#`, assign the next `ID` (max across all active + completed tasks + 1), set Status to `&nbsp;`, assign a Priority, use `00:00` if no time is specified.
 - **Completing a task**: Remove the row from the active task list and move it to the **Completed Tasks** section at the bottom of `tasks.md`, setting Status to `✅` and Date Completed to today's date (`YYYY-MM-DD`). Renumber both tables sequentially after the move. The task's `ID` is preserved.
+- **Completing a recurring task**: When a completed task has a non-empty `Recur` value (`daily` / `weekly` / `monthly` / `yearly`), also append a fresh active row with a new `ID` (max across active + completed + 1), the same Task / Notes / Category / Parent / Priority / Recur values, and a `Due Date` advanced one recurrence step from the completed instance. Monthly clamps to the target month's last day when the source day doesn't exist (e.g. Jan 31 → Feb 28/29); yearly clamps Feb 29 → Feb 28 on non-leap years. The HH:MM portion is preserved. Status is re-evaluated against the new due date.
 - **Completed Tasks section**: A separate table at the bottom of `tasks.md` under a `## Completed Tasks` heading. Same column structure as the active task list, plus an additional `Date Completed` column (`YYYY-MM-DD`) at the end. Numbers are independent of the active list (start at 1, increment sequentially). `ID` and `Parent` values are preserved.
 - **Due date format**: Always `YYYY-MM-DD HH:MM` in 24-hour format.
 - **Overdue tasks**: Use `⚠️` in the Status column for incomplete tasks whose due date has passed (strictly before today's date). Tasks due today are not overdue. Always update overdue statuses automatically without asking the user.
