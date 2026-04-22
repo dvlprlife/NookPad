@@ -7,6 +7,7 @@ A self-hosted web dashboard for tasks, shopping lists, and ideas — one Python 
 - Tasks with priorities, due dates, overdue flagging, categories, sub-tasks, and a completed history.
 - Shopping list organised by store.
 - Ideas with sub-ideas and optional notes.
+- Quick-capture notes on a dedicated page.
 - Category management page.
 - Cheatsheet viewer (any markdown file in `cheatsheets/` is rendered read-only).
 - Auto-refresh every 30 seconds; no build step, no database.
@@ -129,9 +130,18 @@ Each panel has a **+ Add** button in the header to add new entries without editi
 - **✎** opens an edit modal pre-filled with the current description and notes
 - **✕** permanently deletes the idea and any of its sub-ideas — a confirmation dialog appears first
 
+### Notes
+- Click the **Notes** link in the header to open the notes page
+- A free-form scratchpad for quick thoughts, URLs, reminders — anything that doesn't fit the structured Tasks / Shopping / Ideas buckets
+- Click **+ Add** to open a modal with a single text area; submitting creates a new note stamped with the current date and time
+- Notes are displayed newest-first; IDs are assigned automatically and never reused
+- Hover over any note to reveal the **✎** (edit) and **✕** (delete) buttons
+- **✎** opens an edit modal pre-filled with the note's body; ID and timestamp are preserved
+- **✕** permanently deletes the note — a confirmation dialog appears first
+
 ## How It Works
 
-- Reads `lists/tasks.md`, `lists/shopping.md`, and `lists/ideas.md` directly on each page load
+- Reads `lists/tasks.md`, `lists/shopping.md`, `lists/ideas.md`, and `lists/notes.md` directly on each page load
 - Writes changes back to those files immediately when forms are submitted
 - Any manual edits to those files will appear on the next refresh (within 30 seconds)
 - No build step or database required

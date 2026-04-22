@@ -11,6 +11,7 @@
 ## Files
 - `lists/tasks.md` — the active task list
 - `lists/ideas.md` — a running list of ideas
+- `lists/notes.md` — quick-capture free-form notes
 - `lists/shopping.md` — shopping list organized by store
 - `lists/categories.md` — task categories (code, description, sort order)
 - `cheatsheets/` — reference cheatsheets (raspberry-pi, tmux)
@@ -67,6 +68,14 @@
 - Ideas can be edited (description and notes; ID and date are preserved) or deleted via the dashboard.
 - Deleting an idea also deletes its sub-ideas (cascade). IDs of deleted ideas are never reused.
 
+## Notes (`notes.md`)
+- Format per note: `## {id} | {YYYY-MM-DD HH:MM}` heading followed by free-form body text.
+- `id` is a monotonically increasing integer, assigned by the server. Never reused, even after deletion.
+- Timestamp is assigned by the server at creation time (local time, `YYYY-MM-DD HH:MM`).
+- Notes are stored and displayed newest-first.
+- No parent/child relationships — deliberately flat.
+- Notes can be edited (body only; ID and timestamp are preserved) or deleted via the `/notes` page.
+
 ## Shopping (`shopping.md`)
 - Organized by store: `## {Store Name}` headings.
 - Items are bullet points: `- {item}`.
@@ -83,6 +92,7 @@
 - Supports adding tasks (`/add-task`), shopping items (`/add-shopping`), and ideas (`/add-idea`) via POST.
 - Supports completing tasks (`/complete-task`), editing tasks (`/edit-task`), deleting tasks (`/delete-task`), and removing purchased shopping items (`/complete-shopping`) via POST.
 - Supports editing ideas (`/edit-idea`) and deleting ideas (`/delete-idea`) via POST.
+- Supports adding, editing, and deleting notes (`/add-note`, `/edit-note`, `/delete-note`) via POST.
 - Supports permanently deleting completed tasks (`/delete-completed-task`) via POST — browser confirmation required.
 - Deleting an active task removes it permanently (no archive) — browser confirmation required.
 - Editing a task updates fields in-place, re-sorts, and recalculates overdue status.
@@ -91,7 +101,7 @@
 - Dashboard layout: Tasks (top-left), Ideas (bottom-left), Shopping (right, full height).
 - Sub-tasks are displayed indented under their parent task in the Tasks panel.
 - Completing a task via the dashboard follows the same rules as completing one manually (move to Completed Tasks, set Date Completed to today, renumber both tables).
-- Header nav links (left to right): Completed Tasks, Categories, then cheatsheet links.
+- Header nav links (left to right): Completed Tasks, Agenda, Categories, Notes, then cheatsheet links.
 - Completed Tasks page (`/completed`): lists all completed tasks with priority, due date, task, notes, and date completed. ✕ (delete) appears on hover to permanently remove a row; redirects back to `/completed` after deletion.
 - To install as a service: `sudo cp dashboard.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now dashboard`
 - To restart after changes: `sudo systemctl restart dashboard`
