@@ -52,6 +52,7 @@ _FILE_DEFAULTS = {
         "|-------|------------|--------------|--------------|----------|-----------|---|--------|----|-----------|\n"
     ),
     "ideas.md": "# Ideas\n",
+    "notes.md": "# Notes\n",
     "shopping.md": "# Shopping\n",
     "categories.md": "# Categories\n\n| **Code** | **Description** | **Sort Order** |\n|----------|-----------------|----------------|\n",
 }
@@ -414,6 +415,67 @@ def delete_idea(idea_id: str):
             continue
         new_blocks.append((heading, body))
     path.write_text(_reassemble_ideas(preamble, new_blocks))
+
+
+_NOTE_HEADER_RE = re.compile(r"^##\s+(\d+)\s*\|\s*(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})\s*$")
+
+
+def _parse_notes(content: str):
+    """Return list of dicts: {id, timestamp, body}. File order is preserved (newest-first)."""
+    notes = []
+    lines = content.splitlines()
+    i = 0
+    while i < len(lines):
+        m = _NOTE_HEADER_RE.match(lines[i])
+        if m:
+            note_id, ts = m.group(1), m.group(2)
+            body_lines = []
+            i += 1
+            while i < len(lines) and not _NOTE_HEADER_RE.match(lines[i]):
+                body_lines.append(lines[i])
+                i += 1
+            while body_lines and not body_lines[0].strip():
+                body_lines.pop(0)
+            while body_lines and not body_lines[-1].strip():
+                body_lines.pop()
+            notes.append({"id": note_id, "timestamp": ts, "body": "\n".join(body_lines)})
+        else:
+            i += 1
+    return notes
+
+
+def _write_notes(notes):
+    path = BASE / "notes.md"
+    out = "# Notes\n"
+    for n in notes:
+        out += f"\n## {n['id']} | {n['timestamp']}\n{n['body']}\n"
+    path.write_text(out)
+
+
+def add_note(body: str):
+    path = BASE / "notes.md"
+    existing = _parse_notes(path.read_text())
+    next_id = max((int(n["id"]) for n in existing), default=0) + 1
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    new_notes = [{"id": str(next_id), "timestamp": timestamp, "body": body}] + existing
+    _write_notes(new_notes)
+
+
+def edit_note(note_id: str, body: str):
+    path = BASE / "notes.md"
+    notes = _parse_notes(path.read_text())
+    for n in notes:
+        if n["id"] == note_id:
+            n["body"] = body
+            break
+    _write_notes(notes)
+
+
+def delete_note(note_id: str):
+    path = BASE / "notes.md"
+    notes = _parse_notes(path.read_text())
+    notes = [n for n in notes if n["id"] != note_id]
+    _write_notes(notes)
 
 
 def add_shopping_item(store: str, item: str):
@@ -1090,6 +1152,7 @@ def cheatsheet_links():
     links = '<a href="/completed" class="nav-link">Completed Tasks</a>'
     links += '<a href="/agenda" class="nav-link">Agenda</a>'
     links += '<a href="/categories" class="nav-link">Categories</a>'
+    links += '<a href="/notes" class="nav-link">Notes</a>'
     for path in sorted(CHEATSHEETS_DIR.glob("*.md")):
         label = path.stem.replace("-cheatsheet", "").replace("-", " ").title()
         links += f'<a href="/cheatsheet/{path.name}" class="nav-link">{label}</a>'
@@ -1408,7 +1471,15 @@ tbody.cat-group.collapsed tr:not(.cat-header) { display: none; }
 .agenda-count { color: #64748b; font-size: 0.75rem; margin-left: 0.35rem; font-weight: 500; }
 .agenda-table { width: 100%; }
 .agenda-cat { color: #64748b; font-size: 0.75rem; margin-left: 0.4rem; text-transform: uppercase; letter-spacing: 0.04em; }
-.shop-item { flex: 1; }
+.notes-list { display: flex; flex-direction: column; gap: 0.65rem; }
+.note-card { padding: 0.75rem 0.9rem; border-radius: 6px; background: #0f172a; border: 1px solid #1e293b; position: relative; }
+.note-card:hover { border-color: #334155; }
+.note-head { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #64748b; }
+.note-ts { font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+.note-id { color: #475569; margin-right: 0.4rem; }
+.note-body { margin-top: 0.4rem; white-space: pre-wrap; color: #e2e8f0; font-size: 0.95rem; line-height: 1.45; }
+.note-card .task-hover-actions { opacity: 0; transition: opacity 0.1s; }
+.note-card:hover .task-hover-actions { opacity: 1; }
 .card ul li { display: flex; align-items: center; gap: 0.5rem; }
 
 /* ── Cheatsheet page ── */
@@ -1700,6 +1771,104 @@ def completed_tasks_page():
 </html>"""
 
 
+def notes_page():
+    notes = _parse_notes(read("notes.md"))
+
+    def make_card(n):
+        nid = html_escape(n["id"])
+        ts = html_escape(n["timestamp"])
+        body_html = html_escape(n["body"])
+        body_js = (
+            n["body"]
+            .replace("\\", "\\\\")
+            .replace("'", "\\'")
+            .replace('"', "&quot;")
+            .replace("`", "\\`")
+            .replace("\n", "\\n")
+            .replace("\r", "")
+        )
+        return f"""<div class="note-card">
+          <div class="note-head">
+            <span><span class="note-id">#{nid}</span><span class="note-ts">{ts}</span></span>
+            <span class="task-hover-actions">
+              <button type="button" class="edit-btn" title="Edit note" onclick="openEditNote('{nid}','{body_js}')">✎</button>
+              <form method="POST" action="/delete-note" style="display:inline">
+                <input type="hidden" name="id" value="{nid}">
+                <button type="submit" class="del-btn" title="Delete note" onclick="return confirm('Delete this note?')">✕</button>
+              </form>
+            </span>
+          </div>
+          <div class="note-body">{body_html}</div>
+        </div>"""
+
+    cards_html = "".join(make_card(n) for n in notes) or \
+        '<p class="empty"><em>No notes yet. Click + Add to write one.</em></p>'
+    total = len(notes)
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Notes</title>
+  <link rel="stylesheet" href="/style.css">
+  {FAVICON_LINK}
+</head>
+<body>
+  <header>
+    <a href="/" class="back">← {notepad_icon(18)} NookPad</a>
+  </header>
+  <main style="max-width:800px;margin:0 auto;">
+    <div class="card">
+      <h2>Notes <span class="count">{total}</span>
+        <button class="add-btn" onclick="document.getElementById('note-modal').classList.add('open')">+ Add</button>
+      </h2>
+      <div class="notes-list">{cards_html}</div>
+    </div>
+  </main>
+
+  <div id="note-modal" class="modal-overlay" onclick="if(event.target===this)this.classList.remove('open')">
+    <div class="modal">
+      <h3>Add Note</h3>
+      <form method="POST" action="/add-note">
+        <label>Note
+          <textarea name="body" rows="6" required placeholder="Quick thought, URL, reminder..."></textarea>
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="cancel-btn" onclick="document.getElementById('note-modal').classList.remove('open')">Cancel</button>
+          <button type="submit" class="submit-btn">Add Note</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="note-edit-modal" class="modal-overlay" onclick="if(event.target===this)this.classList.remove('open')">
+    <div class="modal">
+      <h3>Edit Note</h3>
+      <form method="POST" action="/edit-note">
+        <input type="hidden" name="id" id="edit-note-id">
+        <label>Note
+          <textarea name="body" id="edit-note-body" rows="6" required></textarea>
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="cancel-btn" onclick="document.getElementById('note-edit-modal').classList.remove('open')">Cancel</button>
+          <button type="submit" class="submit-btn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+  function openEditNote(id, body) {{
+    document.getElementById('edit-note-id').value = id;
+    document.getElementById('edit-note-body').value = body;
+    document.getElementById('note-edit-modal').classList.add('open');
+  }}
+  </script>
+</body>
+</html>"""
+
+
 def agenda_page():
     _, active, _ = _parse_active(read("tasks.md"))
     today = date_cls.today()
@@ -1956,6 +2125,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             body = agenda_page().encode()
         elif path == "/categories":
             body = categories_page().encode()
+        elif path == "/notes":
+            body = notes_page().encode()
         elif path.startswith("/cheatsheet/"):
             filename = path[len("/cheatsheet/"):]
             page = cheatsheet_page(filename)
@@ -2047,6 +2218,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
             idea_id = get("id")
             if idea_id:
                 delete_idea(idea_id)
+
+        elif path == "/add-note":
+            body_text = get("body")
+            if body_text:
+                add_note(body_text)
+            self.send_response(303)
+            self.send_header("Location", "/notes")
+            self.end_headers()
+            return
+
+        elif path == "/edit-note":
+            note_id = get("id")
+            body_text = get("body")
+            if note_id and body_text:
+                edit_note(note_id, body_text)
+            self.send_response(303)
+            self.send_header("Location", "/notes")
+            self.end_headers()
+            return
+
+        elif path == "/delete-note":
+            note_id = get("id")
+            if note_id:
+                delete_note(note_id)
+            self.send_response(303)
+            self.send_header("Location", "/notes")
+            self.end_headers()
+            return
 
         elif path == "/add-category":
             code = get("code")
