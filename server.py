@@ -1254,6 +1254,7 @@ def ideas_html():
 
 def cheatsheet_links():
     links = '<a href="/completed" class="nav-link">Completed Tasks</a>'
+    links += '<a href="/review" class="nav-link">Review</a>'
     links += '<a href="/agenda" class="nav-link">Agenda</a>'
     links += '<a href="/categories" class="nav-link">Categories</a>'
     links += '<a href="/notes" class="nav-link">Notes</a>'
@@ -1576,6 +1577,30 @@ tbody.cat-group.collapsed tr:not(.cat-header) { display: none; }
 .agenda-count { color: #64748b; font-size: 0.75rem; margin-left: 0.35rem; font-weight: 500; }
 .agenda-table { width: 100%; }
 .agenda-cat { color: #64748b; font-size: 0.75rem; margin-left: 0.4rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.review-bars { width: 100%; border-collapse: collapse; }
+.review-bars td { padding: 0.25rem 0.4rem; vertical-align: middle; }
+.review-bar-label {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    width: 1%;
+}
+.review-bar-cell { position: relative; }
+.review-bar-fill {
+    display: inline-block;
+    height: 0.85rem;
+    background: #3b82f6;
+    border-radius: 2px;
+    vertical-align: middle;
+    transition: width 0.2s;
+}
+.review-bar-count {
+    font-size: 0.78rem;
+    color: #cbd5e1;
+    margin-left: 0.5rem;
+    font-variant-numeric: tabular-nums;
+}
 .shop-item { flex: 1; }
 .notes-list { display: flex; flex-direction: column; gap: 0.65rem; }
 .note-card { padding: 0.75rem 0.9rem; border-radius: 6px; background: #0f172a; border: 1px solid #1e293b; position: relative; }
@@ -2083,6 +2108,179 @@ def agenda_page():
 </html>"""
 
 
+def review_page():
+    _, active, completed_section = _parse_active(read("tasks.md"))
+    comp_rows = []
+    if completed_section:
+        comp_rows = parse_md_table(completed_section.split("## Completed Tasks", 1)[1])
+
+    today = date_cls.today()
+    monday = today - timedelta(days=today.weekday())
+
+    cat_desc = {c["code"]: c["description"] for c in load_categories() if c["code"]}
+
+    def priority_badge(p):
+        if not p or p == "None":
+            return ""
+        cls = {"High": "high", "Medium": "medium", "Low": "low"}.get(p, "")
+        return f'<span class="badge {cls}">{p}</span>'
+
+    # Section 1: Completions this week
+    week_completions = []
+    for r in comp_rows:
+        date_done = r.get("Date Completed", "").strip()
+        try:
+            d = date_cls.fromisoformat(date_done)
+        except ValueError:
+            continue
+        if d >= monday:
+            week_completions.append(r)
+
+    cat_buckets = {}
+    for r in week_completions:
+        code = r.get("Category", "").strip()
+        label = cat_desc.get(code, "Uncategorized") if code else "Uncategorized"
+        cat_buckets[label] = cat_buckets.get(label, 0) + 1
+
+    if cat_buckets:
+        sorted_labels = sorted(
+            cat_buckets.keys(),
+            key=lambda k: (k == "Uncategorized", k.lower()),
+        )
+        bucket_rows = "".join(
+            f'<tr><td>{html_escape(k)}</td>'
+            f'<td class="due">{cat_buckets[k]}</td></tr>'
+            for k in sorted_labels
+        )
+        week_body = f'<table class="agenda-table"><tbody>{bucket_rows}</tbody></table>'
+    else:
+        week_body = '<p class="empty"><em>No tasks completed this week yet.</em></p>'
+
+    week_section = (
+        f'<h3 class="agenda-heading">This Week '
+        f'<span class="agenda-count">{len(week_completions)}</span></h3>'
+        f'{week_body}'
+    )
+
+    # Section 2: Overdue
+    overdue = []
+    for r in active:
+        due_raw = r.get("Due Date", "").strip()
+        if not due_raw:
+            continue
+        try:
+            d = date_cls.fromisoformat(due_raw.split()[0])
+        except ValueError:
+            continue
+        if d < today:
+            overdue.append((r, d))
+    overdue.sort(key=lambda pair: pair[1])
+
+    if overdue:
+        overdue_rows = ""
+        for r, d in overdue:
+            task = html_escape(r.get("Task", ""))
+            due_display = html_escape(r.get("Due Date", "").replace(" 00:00", ""))
+            days = (today - d).days
+            overdue_rows += (
+                f'<tr><td>{task}</td>'
+                f'<td class="due">{due_display}</td>'
+                f'<td class="due">{days}d</td></tr>'
+            )
+        overdue_body = f'<table class="agenda-table"><tbody>{overdue_rows}</tbody></table>'
+    else:
+        overdue_body = '<p class="empty"><em>Nothing overdue.</em></p>'
+
+    overdue_section = (
+        f'<h3 class="agenda-heading">Overdue '
+        f'<span class="agenda-count">{len(overdue)}</span></h3>'
+        f'{overdue_body}'
+    )
+
+    # Section 3: Oldest open
+    def id_key(r):
+        try:
+            return int(r.get("ID", "") or 0)
+        except ValueError:
+            return 0
+
+    oldest = sorted(active, key=id_key)[:5]
+
+    if oldest:
+        oldest_rows = ""
+        for r in oldest:
+            task = html_escape(r.get("Task", ""))
+            due_raw = r.get("Due Date", "").strip()
+            due_display = html_escape(due_raw.replace(" 00:00", "")) if due_raw else ""
+            oldest_rows += (
+                f'<tr><td>{task}</td>'
+                f'<td class="due">{due_display}</td>'
+                f'<td>{priority_badge(r.get("Priority", ""))}</td></tr>'
+            )
+        oldest_body = f'<table class="agenda-table"><tbody>{oldest_rows}</tbody></table>'
+    else:
+        oldest_body = '<p class="empty"><em>No open tasks.</em></p>'
+
+    oldest_section = (
+        f'<h3 class="agenda-heading">Oldest Open</h3>'
+        f'{oldest_body}'
+    )
+
+    # Section 4: Completions per day, last 7 days
+    day_counts = {today - timedelta(days=i): 0 for i in range(7)}
+    for r in comp_rows:
+        date_done = r.get("Date Completed", "").strip()
+        try:
+            d = date_cls.fromisoformat(date_done)
+        except ValueError:
+            continue
+        if d in day_counts:
+            day_counts[d] += 1
+
+    max_count = max(day_counts.values())
+    bar_rows = ""
+    for d in sorted(day_counts.keys()):
+        count = day_counts[d]
+        width_pct = int((count / max_count) * 100) if max_count > 0 else 0
+        label = d.strftime("%a %b %d")
+        bar_rows += (
+            f'<tr>'
+            f'<td class="review-bar-label">{label}</td>'
+            f'<td class="review-bar-cell">'
+            f'<div class="review-bar-fill" style="width:{width_pct}%"></div>'
+            f'<span class="review-bar-count">{count}</span>'
+            f'</td></tr>'
+        )
+    trend_section = (
+        f'<h3 class="agenda-heading">Last 7 Days</h3>'
+        f'<table class="review-bars"><tbody>{bar_rows}</tbody></table>'
+    )
+
+    sections = week_section + overdue_section + oldest_section + trend_section
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Review</title>
+  <link rel="stylesheet" href="/style.css">
+  {FAVICON_LINK}
+</head>
+<body>
+  <header>
+    <a href="/" class="back">← {notepad_icon(18)} NookPad</a>
+  </header>
+  <main style="max-width:800px;margin:0 auto;">
+    <div class="card">
+      <h2>Review</h2>
+      {sections}
+    </div>
+  </main>
+</body>
+</html>"""
+
+
 def categories_page():
     cats = load_categories()
     _, active_tasks, _ = _parse_active(read("tasks.md"))
@@ -2228,6 +2426,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             body = dashboard_page().encode()
         elif path == "/completed":
             body = completed_tasks_page().encode()
+        elif path == "/review":
+            body = review_page().encode()
         elif path == "/agenda":
             body = agenda_page().encode()
         elif path == "/categories":

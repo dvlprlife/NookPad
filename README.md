@@ -116,6 +116,13 @@ Each panel has a **+ Add** button in the header to add new entries without editi
 - Sections with no tasks are omitted; `Overdue` sorts oldest due-date first, all other sections sort by priority (High → Medium → Low) then task name
 - No edit or complete controls — use the main dashboard to act on a task
 
+### Review
+- Click the **Review** link in the header to open a read-only weekly review
+- **This Week** — count of tasks completed since Monday 00:00, broken down by category description (tasks with no category or an unknown code are grouped as *Uncategorized*)
+- **Overdue** — every active task whose due date has passed, sorted oldest-first, with the number of days overdue
+- **Oldest Open** — the five active tasks with the lowest internal IDs (a rough proxy for "sitting the longest")
+- **Last 7 Days** — a simple CSS-only bar chart of completions per day for the past week
+
 ### Shopping
 - Click **+ Add** in the Shopping panel to open the form
 - Fields: Store (autocompletes existing stores), Item
