@@ -714,6 +714,40 @@ def edit_task(task_num: int, due_date: str, task: str, notes: str, priority: str
     path.write_text(new_content)
 
 
+SNOOZE_DELTAS = {"1d": timedelta(days=1), "1w": timedelta(days=7)}
+
+
+def snooze_task(task_id: str, delta: str):
+    """Push a task's due date forward by a preset delta, preserving HH:MM."""
+    if delta not in SNOOZE_DELTAS:
+        return
+    path = BASE / "tasks.md"
+    header_lines, rows, completed_section = _parse_active(path.read_text())
+    today = date_cls.today()
+    for r in rows:
+        if r.get("ID") != task_id:
+            continue
+        due_raw = r.get("Due Date", "")
+        parts = due_raw.split()
+        date_part = parts[0] if parts else ""
+        time_part = parts[1] if len(parts) > 1 else "00:00"
+        try:
+            new_date = date_cls.fromisoformat(date_part) + SNOOZE_DELTAS[delta]
+        except ValueError:
+            return
+        r["Due Date"] = f"{new_date.isoformat()} {time_part}"
+        r["Status"] = "⚠️" if new_date < today else "&nbsp;"
+        break
+    else:
+        return
+    _sync_parent_due_dates(rows)
+    rows.sort(key=lambda r: (r["Due Date"], PRIORITY_ORDER.get(r["Priority"], 99)))
+    new_content = _render_active(header_lines, rows)
+    if completed_section:
+        new_content += "\n" + completed_section
+    path.write_text(new_content)
+
+
 def remove_shopping_item(store: str, item: str):
     """Remove a specific item from a store section in shopping.md."""
     path = BASE / "shopping.md"
@@ -865,6 +899,7 @@ def tasks_html():
         due = html_escape(due_raw.replace(" 00:00", ""))
         due_date_val = html_escape(due_raw.split()[0] if due_raw else "")
         num = html_escape(r.get("#", ""))
+        task_id = html_escape(r.get("ID", ""))
         task_text = html_escape(r.get("Task", ""))
         notes_text = html_escape(r.get("Notes", ""))
         priority = r.get("Priority", "Medium")
@@ -892,6 +927,8 @@ def tasks_html():
             <td class="action-cell">
                 <form method="POST" action="/complete-task" style="display:inline"><input type="hidden" name="num" value="{num}"><button type="submit" class="done-btn" title="Mark complete">✓</button></form>
                 <span class="task-hover-actions">
+                    <form method="POST" action="/snooze-task" style="display:inline"><input type="hidden" name="id" value="{task_id}"><input type="hidden" name="delta" value="1d"><button type="submit" class="snooze-btn" title="Snooze +1 day">+1d</button></form>
+                    <form method="POST" action="/snooze-task" style="display:inline"><input type="hidden" name="id" value="{task_id}"><input type="hidden" name="delta" value="1w"><button type="submit" class="snooze-btn" title="Snooze +1 week">+1w</button></form>
                     <button type="button" class="edit-btn" title="Edit task" onclick="openEditTask('{num}','{task_js}','{notes_js}','{due_date_val}','{priority}','{parent_id_js}','{category_js}','{recur_js}')">✎</button>
                     <form method="POST" action="/delete-task" style="display:inline"><input type="hidden" name="num" value="{num}"><button type="submit" class="del-btn" title="Delete task" onclick="return confirm('Delete this task permanently?')">✕</button></form>
                 </span>
@@ -1539,6 +1576,18 @@ ul.ideas li:hover .idea-actions { opacity: 1; }
 .done-btn:hover { background: #166534; border-color: #16a34a; color: #86efac; }
 .del-btn:hover { background: #7f1d1d; border-color: #dc2626; color: #fca5a5; }
 .reopen-btn:hover { background: #1e3a5f; border-color: #3b82f6; color: #93c5fd; }
+.snooze-btn {
+    background: transparent;
+    border: 1px solid #334155;
+    border-radius: 4px;
+    color: #475569;
+    font-size: 0.7rem;
+    padding: 0.1rem 0.35rem;
+    cursor: pointer;
+    line-height: 1.4;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.snooze-btn:hover { background: #422006; border-color: #b45309; color: #fcd34d; }
 .action-cell { width: 1px; white-space: nowrap; padding-right: 0.25rem; vertical-align: middle; }
 .task-hover-actions { display: inline-flex; gap: 0.3rem; opacity: 0; transition: opacity 0.15s; vertical-align: middle; }
 tr:hover .task-hover-actions { opacity: 1; }
@@ -2501,6 +2550,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             recur = get("recur", "")
             if num.isdigit() and due_raw and task:
                 edit_task(int(num), due_raw + " 00:00", task, notes, priority, parent, category, recur)
+
+        elif path == "/snooze-task":
+            task_id = get("id")
+            delta = get("delta")
+            if task_id and delta in SNOOZE_DELTAS:
+                snooze_task(task_id, delta)
 
         elif path == "/complete-shopping":
             store = get("store")

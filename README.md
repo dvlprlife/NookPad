@@ -98,7 +98,8 @@ Each panel has a **+ Add** button in the header to add new entries without editi
 - Click the **✓** button on any task row to mark it complete — it moves to the Completed Tasks section in `tasks.md` with today's date
 - If the completed task has a **Recur** value, a new active row is also created with the next due date computed from the recurrence (e.g. `daily` adds one day; `monthly` clamps Jan 31 → Feb 28/29). Recurring tasks display a small `↻` indicator next to the task name
 - Sub-tasks appear indented (↳) under their parent on the Completed Tasks page as well
-- Hover over any task row to reveal the **✎** (edit) and **✕** (delete) buttons
+- Hover over any task row to reveal the **+1d** / **+1w** (snooze), **✎** (edit), and **✕** (delete) buttons
+- **+1d** / **+1w** push the task's due date forward by 1 day or 1 week with a single click — the time portion (HH:MM) is preserved, overdue status is re-evaluated, and the list is re-sorted. Snoozing a sub-task re-syncs its parent's due date to the earliest sub-task. Backed by the `/snooze-task` POST endpoint (params `id`, `delta` ∈ `1d` / `1w`)
 - **✎** opens an edit modal pre-filled with the task's due date, priority, category, name, notes, and parent task
 - **✕** permanently deletes the task — a confirmation dialog appears first. If a parent task is deleted while sub-tasks exist, those sub-tasks remain but lose their parent relationship
 
