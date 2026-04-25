@@ -186,6 +186,35 @@ def html_escape(text: str) -> str:
             .replace('"', "&quot;"))
 
 
+def _status_for(due_date_str: str) -> str:
+    """Return ⚠️ when the due date is strictly before today, else &nbsp;.
+
+    Falls back to &nbsp; on parse failure (matches prior silent-pass behavior).
+    Accepts `YYYY-MM-DD` or `YYYY-MM-DD HH:MM`.
+    """
+    try:
+        due = date_cls.fromisoformat(due_date_str.split()[0])
+    except (ValueError, IndexError):
+        return "&nbsp;"
+    return "⚠️" if due < date_cls.today() else "&nbsp;"
+
+
+def js_escape(s: str, multiline: bool = False) -> str:
+    """Escape a Python string for safe interpolation into a JS string literal.
+
+    Mirrors the chain previously inlined at every call site.  When
+    `multiline=True`, also encodes `\\n` and strips `\\r` (used by notes whose
+    body can contain newlines).
+    """
+    out = (s.replace("\\", "\\\\")
+            .replace("'", "\\'")
+            .replace('"', "&quot;")
+            .replace("`", "\\`"))
+    if multiline:
+        out = out.replace("\n", "\\n").replace("\r", "")
+    return out
+
+
 COL_HEADER = "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Category** | **Parent** | **ID** | **Recur** |"
 COL_SEP    = "|---|--------|----------|----------|------|-------|---|---|---|---|"
 
@@ -244,13 +273,11 @@ def _next_task_id(rows, completed_section: str) -> int:
             ids.append(int(r.get("ID", 0) or 0))
         except ValueError:
             pass
-    if completed_section:
-        comp_rows = parse_md_table(completed_section.split("## Completed Tasks", 1)[1])
-        for r in comp_rows:
-            try:
-                ids.append(int(r.get("ID", 0) or 0))
-            except ValueError:
-                pass
+    for r in _completed_rows(completed_section):
+        try:
+            ids.append(int(r.get("ID", 0) or 0))
+        except ValueError:
+            pass
     return max(ids, default=0) + 1
 
 
@@ -296,7 +323,6 @@ def _sync_parent_due_dates(rows):
         if p:
             children.setdefault(p, []).append(r)
 
-    today = date_cls.today()
     for parent_id, subtask_rows in children.items():
         parent_row = id_to_row.get(parent_id)
         if parent_row is None:
@@ -311,11 +337,7 @@ def _sync_parent_due_dates(rows):
             continue
         nearest_due = min(dates)
         parent_row["Due Date"] = nearest_due
-        try:
-            due = date_cls.fromisoformat(nearest_due.split()[0])
-            parent_row["Status"] = "⚠️" if due < today else "&nbsp;"
-        except ValueError:
-            pass
+        parent_row["Status"] = _status_for(nearest_due)
 
 
 def _render_active(header_lines, rows) -> str:
@@ -325,6 +347,16 @@ def _render_active(header_lines, rows) -> str:
             f"| {i} | {r['Status']} | {r['Priority']} | {r['Due Date']} | {r['Task']} | {r['Notes']} | {r.get('Category', '')} | {r.get('Parent', '')} | {r.get('ID', '')} | {r.get('Recur', '')} |"
         )
     return "\n".join(lines) + "\n"
+
+
+def _save_active(header_lines, rows, completed_section: str) -> None:
+    """Sync parent due dates, sort, render, and write tasks.md."""
+    _sync_parent_due_dates(rows)
+    rows.sort(key=lambda r: (r["Due Date"], PRIORITY_ORDER.get(r["Priority"], 99)))
+    new_content = _render_active(header_lines, rows)
+    if completed_section:
+        new_content += "\n" + completed_section
+    (BASE / "tasks.md").write_text(new_content)
 
 
 def _parse_ideas(content: str):
@@ -552,12 +584,7 @@ def complete_task(task_num: int):
         try:
             next_due = _next_recur_due(found["Due Date"], recur)
             next_id = str(_next_task_id(remaining + [found], completed_section))
-            today_d = date_cls.today()
-            try:
-                due_d = date_cls.fromisoformat(next_due.split()[0])
-                next_status = "⚠️" if due_d < today_d else "&nbsp;"
-            except ValueError:
-                next_status = "&nbsp;"
+            next_status = _status_for(next_due)
             remaining.append({
                 "#": "",
                 "Status": next_status,
@@ -576,7 +603,7 @@ def complete_task(task_num: int):
 
     new_content = _render_active(header_lines, remaining)
 
-    existing_comp = parse_md_table(completed_section.split("## Completed Tasks", 1)[1]) if completed_section else []
+    existing_comp = _completed_rows(completed_section)
     today = date_cls.today().isoformat()
     existing_comp.append({
         "Status": "✅",
@@ -632,13 +659,8 @@ def reopen_completed_task(task_num: int):
 
     # Re-add to active list
     header_lines, rows, _ = _parse_active(active_part)
-    today = date_cls.today()
     due_raw = found.get("Due Date", "")
-    try:
-        due_date = date_cls.fromisoformat(due_raw.split()[0]) if due_raw else None
-        status = "⚠️" if due_date and due_date < today else "&nbsp;"
-    except ValueError:
-        status = "&nbsp;"
+    status = _status_for(due_raw) if due_raw else "&nbsp;"
     new_row = {
         "#": str(len(rows) + 1),
         "Status": status,
@@ -690,14 +712,9 @@ def edit_task(task_num: int, due_date: str, task: str, notes: str, priority: str
     editing_id = next((r["ID"] for r in rows if r["#"].isdigit() and int(r["#"]) == task_num), None)
     if parent not in valid_ids or parent == editing_id:
         parent = ""
-    today = date_cls.today()
     for r in rows:
         if r["#"].isdigit() and int(r["#"]) == task_num:
-            try:
-                due = date_cls.fromisoformat(due_date.split()[0])
-                r["Status"] = "⚠️" if due < today else "&nbsp;"
-            except ValueError:
-                pass
+            r["Status"] = _status_for(due_date)
             r["Due Date"] = due_date
             r["Task"] = task
             r["Notes"] = notes
@@ -706,12 +723,7 @@ def edit_task(task_num: int, due_date: str, task: str, notes: str, priority: str
             r["Category"] = category
             r["Recur"] = recur
             break
-    _sync_parent_due_dates(rows)
-    rows.sort(key=lambda r: (r["Due Date"], PRIORITY_ORDER.get(r["Priority"], 99)))
-    new_content = _render_active(header_lines, rows)
-    if completed_section:
-        new_content += "\n" + completed_section
-    path.write_text(new_content)
+    _save_active(header_lines, rows, completed_section)
 
 
 SNOOZE_DELTAS = {"1d": timedelta(days=1), "1w": timedelta(days=7)}
@@ -721,9 +733,7 @@ def snooze_task(task_id: str, delta: str):
     """Push a task's due date forward by a preset delta, preserving HH:MM."""
     if delta not in SNOOZE_DELTAS:
         return
-    path = BASE / "tasks.md"
-    header_lines, rows, completed_section = _parse_active(path.read_text())
-    today = date_cls.today()
+    header_lines, rows, completed_section = _parse_active((BASE / "tasks.md").read_text())
     for r in rows:
         if r.get("ID") != task_id:
             continue
@@ -735,17 +745,13 @@ def snooze_task(task_id: str, delta: str):
             new_date = date_cls.fromisoformat(date_part) + SNOOZE_DELTAS[delta]
         except ValueError:
             return
-        r["Due Date"] = f"{new_date.isoformat()} {time_part}"
-        r["Status"] = "⚠️" if new_date < today else "&nbsp;"
+        new_due = f"{new_date.isoformat()} {time_part}"
+        r["Due Date"] = new_due
+        r["Status"] = _status_for(new_due)
         break
     else:
         return
-    _sync_parent_due_dates(rows)
-    rows.sort(key=lambda r: (r["Due Date"], PRIORITY_ORDER.get(r["Priority"], 99)))
-    new_content = _render_active(header_lines, rows)
-    if completed_section:
-        new_content += "\n" + completed_section
-    path.write_text(new_content)
+    _save_active(header_lines, rows, completed_section)
 
 
 def remove_shopping_item(store: str, item: str):
@@ -769,15 +775,7 @@ def add_task(due_date: str, task: str, notes: str, priority: str = "Medium", par
     if recur not in VALID_RECUR:
         recur = ""
 
-    path = BASE / "tasks.md"
-    header_lines, rows, completed_section = _parse_active(path.read_text())
-
-    today = date_cls.today()
-    try:
-        due = date_cls.fromisoformat(due_date.split()[0])
-        status = "⚠️" if due < today else "&nbsp;"
-    except ValueError:
-        status = "&nbsp;"
+    header_lines, rows, completed_section = _parse_active((BASE / "tasks.md").read_text())
 
     # Validate parent refers to an existing task ID
     valid_ids = {r["ID"] for r in rows if r.get("ID")}
@@ -785,14 +783,8 @@ def add_task(due_date: str, task: str, notes: str, priority: str = "Medium", par
         parent = ""
 
     new_id = str(_next_task_id(rows, completed_section))
-    rows.append({"#": "", "Status": status, "Priority": priority, "Due Date": due_date, "Task": task, "Notes": notes, "Category": category, "Parent": parent, "ID": new_id, "Recur": recur})
-    _sync_parent_due_dates(rows)
-    rows.sort(key=lambda r: (r["Due Date"], PRIORITY_ORDER.get(r["Priority"], 99)))
-
-    new_content = _render_active(header_lines, rows)
-    if completed_section:
-        new_content += "\n" + completed_section
-    path.write_text(new_content)
+    rows.append({"#": "", "Status": _status_for(due_date), "Priority": priority, "Due Date": due_date, "Task": task, "Notes": notes, "Category": category, "Parent": parent, "ID": new_id, "Recur": recur})
+    _save_active(header_lines, rows, completed_section)
 
 
 # ---------------------------------------------------------------------------
@@ -872,6 +864,18 @@ def parse_md_table(text):
     return result
 
 
+def _completed_rows(text: str):
+    """Parse the rows inside a `## Completed Tasks` section.
+
+    Accepts either the section alone (as returned by `_parse_active`) or a
+    larger body that contains it; returns `[]` when the marker is absent.
+    """
+    marker = "## Completed Tasks"
+    if not text or marker not in text:
+        return []
+    return parse_md_table(text.split(marker, 1)[1])
+
+
 def tasks_html():
     _, active, _ = _parse_active(read("tasks.md"))
 
@@ -903,8 +907,8 @@ def tasks_html():
         task_text = html_escape(r.get("Task", ""))
         notes_text = html_escape(r.get("Notes", ""))
         priority = r.get("Priority", "Medium")
-        task_js = r.get("Task", "").replace("\\", "\\\\").replace("'", "\\'").replace('"', '&quot;').replace("`", "\\`")
-        notes_js = r.get("Notes", "").replace("\\", "\\\\").replace("'", "\\'").replace('"', '&quot;').replace("`", "\\`")
+        task_js = js_escape(r.get("Task", ""))
+        notes_js = js_escape(r.get("Notes", ""))
         parent_id_js = html_escape(r.get("Parent", ""))
         category_js = html_escape(r.get("Category", ""))
         recur = r.get("Recur", "")
@@ -1190,8 +1194,8 @@ def ideas_html():
         title = html_escape(r["desc"])
         date = html_escape(r["date"])
         notes = html_escape(r.get("notes", ""))
-        desc_js = r["desc"].replace("\\", "\\\\").replace("'", "\\'").replace('"', '&quot;').replace("`", "\\`")
-        notes_js = r.get("notes", "").replace("\\", "\\\\").replace("'", "\\'").replace('"', '&quot;').replace("`", "\\`")
+        desc_js = js_escape(r["desc"])
+        notes_js = js_escape(r.get("notes", ""))
         parent_js = html_escape(r.get("parent", ""))
         prefix = '<span class="subtask-indent">↳</span>' if indent else ""
         li_cls = ' class="sub-idea"' if indent else ""
@@ -1876,11 +1880,7 @@ def cheatsheet_page(filename):
 
 def completed_tasks_page():
     content = read("tasks.md")
-    split_marker = "## Completed Tasks"
-    comp_rows = []
-    if split_marker in content:
-        comp_part = content.split(split_marker, 1)[1]
-        comp_rows = parse_md_table(comp_part)
+    comp_rows = _completed_rows(content)
 
     def priority_badge(p):
         if not p or p == "None":
@@ -2003,16 +2003,7 @@ def notes_page():
         nid = html_escape(n["id"])
         ts = html_escape(n["timestamp"])
         body_html = html_escape(n["body"])
-        body_js = (
-            n["body"]
-            .replace("&", "&amp;")
-            .replace("\\", "\\\\")
-            .replace("'", "\\'")
-            .replace('"', "&quot;")
-            .replace("`", "\\`")
-            .replace("\n", "\\n")
-            .replace("\r", "")
-        )
+        body_js = js_escape(n["body"].replace("&", "&amp;"), multiline=True)
         return f"""<div class="note-card">
           <div class="note-head">
             <span><span class="note-id">#{nid}</span><span class="note-ts">{ts}</span></span>
@@ -2204,9 +2195,7 @@ def agenda_page():
 
 def review_page():
     _, active, completed_section = _parse_active(read("tasks.md"))
-    comp_rows = []
-    if completed_section:
-        comp_rows = parse_md_table(completed_section.split("## Completed Tasks", 1)[1])
+    comp_rows = _completed_rows(completed_section)
 
     today = date_cls.today()
     monday = today - timedelta(days=today.weekday())
@@ -2390,7 +2379,7 @@ def categories_page():
         sort = html_escape(str(c["sort_order"]))
         count = counts.get(c["code"], 0)
         code_js = c["code"].replace("'", "\\'")
-        desc_js = c["description"].replace("'", "\\'")
+        desc_js = js_escape(c["description"])
         return f"""<tr>
             <td>{code}</td>
             <td>{desc}</td>
