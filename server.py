@@ -1178,6 +1178,12 @@ def shopping_html():
 def ideas_html():
     ideas = _parse_ideas(read("ideas.md"))
     by_id = {r["id"]: r for r in ideas}
+    today_str = date_cls.today().isoformat()
+    cats = load_categories()
+    promote_cat_opts = '<option value="">— No Category —</option>'
+    for c in cats:
+        if c["code"]:
+            promote_cat_opts += f'<option value="{html_escape(c["code"])}">{html_escape(c["description"])}</option>'
 
     def make_item(r, indent=False):
         id_ = html_escape(r["id"])
@@ -1198,6 +1204,7 @@ def ideas_html():
             f'{notes_html}'
             f'<span class="idea-date">{date}</span>'
             f'<span class="idea-actions">'
+            f'<button class="edit-btn" onclick="openPromoteIdea(\'{id_}\',\'{desc_js}\')" title="Convert to task">➜</button>'
             f'<button class="edit-btn" onclick="openEditIdea(\'{id_}\',\'{desc_js}\',\'{notes_js}\',\'{parent_js}\')" title="Edit idea">✎</button>'
             f'<form method="POST" action="/delete-idea" style="display:inline">'
             f'<input type="hidden" name="id" value="{id_}">'
@@ -1278,6 +1285,36 @@ def ideas_html():
         </div>
     </div>
 
+    <div id="idea-promote-modal" class="modal-overlay" onclick="if(event.target===this)this.classList.remove('open')">
+        <div class="modal">
+            <h3>Convert Idea to Task</h3>
+            <form method="POST" action="/idea-to-task">
+                <input type="hidden" name="idea_id" id="promote-idea-id">
+                <label>Idea
+                    <input type="text" id="promote-idea-desc" disabled>
+                </label>
+                <label>Due Date
+                    <input type="date" name="due_date" id="promote-idea-due" value="{today_str}" required>
+                </label>
+                <label>Priority
+                    <select name="priority" id="promote-idea-priority">
+                        <option value="None" selected>None</option>
+                        <option value="High">High</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Low">Low</option>
+                    </select>
+                </label>
+                <label>Category
+                    <select name="category" id="promote-idea-category">{promote_cat_opts}</select>
+                </label>
+                <div class="modal-actions">
+                    <button type="button" class="cancel-btn" onclick="document.getElementById('idea-promote-modal').classList.remove('open')">Cancel</button>
+                    <button type="submit" class="submit-btn">Create Task</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
     function openEditIdea(id, desc, notes, parent) {{
         document.getElementById('edit-idea-id').value = id;
@@ -1285,6 +1322,14 @@ def ideas_html():
         document.getElementById('edit-idea-notes').value = notes || '';
         document.getElementById('edit-idea-parent').value = parent || '';
         document.getElementById('idea-edit-modal').classList.add('open');
+    }}
+    function openPromoteIdea(id, desc) {{
+        document.getElementById('promote-idea-id').value = id;
+        document.getElementById('promote-idea-desc').value = desc;
+        document.getElementById('promote-idea-due').value = '{today_str}';
+        document.getElementById('promote-idea-priority').value = 'None';
+        document.getElementById('promote-idea-category').value = '';
+        document.getElementById('idea-promote-modal').classList.add('open');
     }}
     </script>"""
 
@@ -2582,6 +2627,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             idea_id = get("id")
             if idea_id:
                 delete_idea(idea_id)
+
+        elif path == "/idea-to-task":
+            idea_id = get("idea_id")
+            priority = get("priority", "None")
+            due_raw = get("due_date")
+            category = get("category", "")
+            if idea_id and due_raw:
+                ideas = _parse_ideas(read("ideas.md"))
+                idea = next((i for i in ideas if i["id"] == idea_id), None)
+                if idea:
+                    add_task(due_raw + " 00:00", idea["desc"], idea.get("notes", ""), priority, "", category, "")
 
         elif path == "/add-note":
             body_text = get("body")

@@ -135,7 +135,8 @@ Each panel has a **+ Add** button in the header to add new entries without editi
 - Select a **Parent Idea** to create a sub-idea — it will appear indented (↳) directly below its parent
 - The ID and date are assigned automatically
 - Notes appear below the idea title in a smaller, muted font
-- Hover over any idea to reveal the **✎** (edit) and **✕** (delete) buttons
+- Hover over any idea to reveal the **➜** (convert to task), **✎** (edit), and **✕** (delete) buttons
+- **➜** opens a modal that creates a new active task from the idea — the description becomes the task name and the notes carry over. You pick the due date (defaults to today), priority (defaults to None), and category at promotion time. The idea itself stays in `ideas.md` as provenance. Backed by the `/idea-to-task` POST endpoint (params `idea_id`, `due_date`, `priority`, `category`)
 - **✎** opens an edit modal pre-filled with the current description and notes
 - **✕** permanently deletes the idea and any of its sub-ideas — a confirmation dialog appears first
 
