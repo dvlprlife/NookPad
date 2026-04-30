@@ -215,6 +215,13 @@ def js_escape(s: str, multiline: bool = False) -> str:
     return out
 
 
+def priority_badge(p: str) -> str:
+    if not p or p == "None":
+        return ""
+    cls = {"High": "high", "Medium": "medium", "Low": "low"}.get(p, "")
+    return f'<span class="badge {cls}">{p}</span>'
+
+
 COL_HEADER = "| **#** | **Status** | **Priority** | **Due Date** | **Task** | **Notes** | **Category** | **Parent** | **ID** | **Recur** |"
 COL_SEP    = "|---|--------|----------|----------|------|-------|---|---|---|---|"
 
@@ -357,6 +364,29 @@ def _save_active(header_lines, rows, completed_section: str) -> None:
     if completed_section:
         new_content += "\n" + completed_section
     (BASE / "tasks.md").write_text(new_content)
+
+
+def _group_by_category(rows, cat_meta, key):
+    """Bucket `rows` by their `key` field, then order by category sort.
+
+    Returns a list of `(cat_code, label, bucket_rows)` triples. The
+    `cat_code` is `""` for the catch-all 'None' bucket which is always
+    appended last when present.
+    """
+    buckets = {}
+    for r in rows:
+        code = r.get(key, "").strip()
+        bucket_key = code if code in cat_meta else ""
+        buckets.setdefault(bucket_key, []).append(r)
+
+    def sort_key(code):
+        meta = cat_meta[code]
+        return (meta["sort_order"], meta["description"].lower())
+
+    ordered = sorted([k for k in buckets if k != ""], key=sort_key)
+    if "" in buckets:
+        ordered.append("")
+    return [(k, cat_meta[k]["description"] if k else "None", buckets[k]) for k in ordered]
 
 
 def _parse_ideas(content: str):
@@ -906,12 +936,6 @@ def tasks_html():
             return "due-today"
         return ""
 
-    def priority_badge(p):
-        if not p or p == "None":
-            return ""
-        cls = {"High": "high", "Medium": "medium", "Low": "low"}.get(p, "")
-        return f'<span class="badge {cls}">{p}</span>'
-
     def make_row(r, indent=False, is_parent=False):
         cls = row_class(r)
         icon = "⚠️" if cls == "overdue" else "·"
@@ -971,23 +995,8 @@ def tasks_html():
     cats = load_categories()
     cat_meta = {c["code"]: c for c in cats if c["code"]}
 
-    buckets = {}
-    for r in top_level:
-        code = r.get("Category", "").strip()
-        key = code if code in cat_meta else ""
-        buckets.setdefault(key, []).append(r)
-
-    def group_sort_key(code):
-        meta = cat_meta.get(code)
-        return (meta["sort_order"], meta["description"].lower())
-
-    ordered_keys = sorted([k for k in buckets if k != ""], key=group_sort_key)
-    if "" in buckets:
-        ordered_keys.append("")
-
     groups_html = ""
-    for key in ordered_keys:
-        bucket = buckets[key]
+    for key, raw_label, bucket in _group_by_category(top_level, cat_meta, "Category"):
         group_rows = ""
         task_count = 0
         for r in bucket:
@@ -997,10 +1006,10 @@ def tasks_html():
             for child in sub_of.get(r.get("ID", ""), []):
                 group_rows += make_row(child, indent=True)
                 task_count += 1
-        label = html_escape(cat_meta[key]["description"]) if key else "None"
+        label = html_escape(raw_label)
         groups_html += (
             f'<tbody class="cat-group">'
-            f'<tr class="cat-header" onclick="toggleCategory(this)">'
+            f'<tr class="cat-header" onclick="toggleCatGroup(this)">'
             f'<td colspan="6"><span class="cat-caret">▼</span> {label} '
             f'<span class="cat-count">{task_count}</span></td></tr>'
             f'{group_rows}'
@@ -1134,11 +1143,11 @@ def tasks_html():
         document.getElementById('edit-task-recur').value = recur || '';
         document.getElementById('task-edit-modal').classList.add('open');
     }}
-    function toggleCategory(headerTr) {{
-        const tbody = headerTr.parentElement;
-        const caret = headerTr.querySelector('.cat-caret');
-        tbody.classList.toggle('collapsed');
-        caret.textContent = tbody.classList.contains('collapsed') ? '▶' : '▼';
+    function toggleCatGroup(headerEl) {{
+        const parent = headerEl.parentElement;
+        const caret = headerEl.querySelector('.cat-caret');
+        parent.classList.toggle('collapsed');
+        caret.textContent = parent.classList.contains('collapsed') ? '▶' : '▼';
     }}
     </script>"""
 
@@ -1246,23 +1255,8 @@ def ideas_html():
         else:
             top_level.append(r)
 
-    buckets = {}
-    for r in top_level:
-        code = r.get("category", "").strip()
-        key = code if code in cat_meta else ""
-        buckets.setdefault(key, []).append(r)
-
-    def group_sort_key(code):
-        meta = cat_meta.get(code)
-        return (meta["sort_order"], meta["description"].lower())
-
-    ordered_keys = sorted([k for k in buckets if k != ""], key=group_sort_key)
-    if "" in buckets:
-        ordered_keys.append("")
-
     groups_html = ""
-    for key in ordered_keys:
-        bucket = buckets[key]
+    for key, raw_label, bucket in _group_by_category(top_level, cat_meta, "category"):
         group_items = ""
         idea_count = 0
         for r in bucket:
@@ -1271,10 +1265,10 @@ def ideas_html():
             for child in sub_of.get(r["id"], []):
                 group_items += make_item(child, indent=True)
                 idea_count += 1
-        label = html_escape(cat_meta[key]["description"]) if key else "None"
+        label = html_escape(raw_label)
         groups_html += (
             f'<section class="idea-cat-group">'
-            f'<h3 class="cat-header" onclick="toggleIdeaCategory(this)">'
+            f'<h3 class="cat-header" onclick="toggleCatGroup(this)">'
             f'<span class="cat-caret">▼</span> {label} '
             f'<span class="cat-count">{idea_count}</span></h3>'
             f'<ul class="ideas">{group_items}</ul>'
@@ -1389,12 +1383,6 @@ def ideas_html():
         document.getElementById('promote-idea-priority').value = 'None';
         document.getElementById('promote-idea-category').value = category || '';
         document.getElementById('idea-promote-modal').classList.add('open');
-    }}
-    function toggleIdeaCategory(headerEl) {{
-        const section = headerEl.parentElement;
-        const caret = headerEl.querySelector('.cat-caret');
-        section.classList.toggle('collapsed');
-        caret.textContent = section.classList.contains('collapsed') ? '▶' : '▼';
     }}
     </script>"""
 
@@ -1708,22 +1696,7 @@ tr.subtask td:first-child { color: #64748b; }
 tr.parent-task td { background: #141c2b; color: #94a3b8; }
 tr.parent-task td:first-child { color: #475569; }
 tr.parent-task .due { color: #64748b; }
-tr.cat-header td {
-    background: #0f2942;
-    color: #7dd3fc;
-    font-size: 0.72rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    padding: 0.4rem 0.6rem;
-    cursor: pointer;
-    user-select: none;
-    border-bottom: 1px solid #1e4a7a;
-}
-tr.cat-header:hover td { background: #1e4a7a; color: #e0f2fe; }
-.cat-caret { display: inline-block; width: 0.9rem; color: #7dd3fc; font-size: 0.7rem; }
-.cat-count { color: #64748b; font-size: 0.7rem; margin-left: 0.35rem; font-weight: 500; text-transform: none; }
-tbody.cat-group.collapsed tr:not(.cat-header) { display: none; }
+tr.cat-header td,
 .idea-cat-group h3.cat-header {
     background: #0f2942;
     color: #7dd3fc;
@@ -1732,12 +1705,16 @@ tbody.cat-group.collapsed tr:not(.cat-header) { display: none; }
     text-transform: uppercase;
     letter-spacing: 0.06em;
     padding: 0.4rem 0.6rem;
-    margin: 0;
     cursor: pointer;
     user-select: none;
     border-bottom: 1px solid #1e4a7a;
 }
+.idea-cat-group h3.cat-header { margin: 0; }
+tr.cat-header:hover td,
 .idea-cat-group h3.cat-header:hover { background: #1e4a7a; color: #e0f2fe; }
+.cat-caret { display: inline-block; width: 0.9rem; color: #7dd3fc; font-size: 0.7rem; }
+.cat-count { color: #64748b; font-size: 0.7rem; margin-left: 0.35rem; font-weight: 500; text-transform: none; }
+tbody.cat-group.collapsed tr:not(.cat-header) { display: none; }
 .idea-cat-group.collapsed > ul { display: none; }
 .agenda-heading {
     margin: 1.25rem 0 0.4rem;
@@ -1958,12 +1935,6 @@ def completed_tasks_page():
     content = read("tasks.md")
     comp_rows = _completed_rows(content)
 
-    def priority_badge(p):
-        if not p or p == "None":
-            return ""
-        cls = {"High": "high", "Medium": "medium", "Low": "low"}.get(p, "")
-        return f'<span class="badge {cls}">{p}</span>'
-
     def make_comp_row(r, indent=False):
         num = html_escape(r.get("#", ""))
         task_text = html_escape(r.get("Task", ""))
@@ -2003,22 +1974,8 @@ def completed_tasks_page():
     cats = load_categories()
     cat_meta = {c["code"]: c for c in cats if c["code"]}
 
-    buckets = {}
-    for r in top_level_comp:
-        code = r.get("Category", "").strip()
-        key = code if code in cat_meta else ""
-        buckets.setdefault(key, []).append(r)
-
-    ordered_keys = sorted(
-        [k for k in buckets if k != ""],
-        key=lambda k: (cat_meta[k]["sort_order"], cat_meta[k]["description"].lower()),
-    )
-    if "" in buckets:
-        ordered_keys.append("")
-
     groups_html = ""
-    for key in ordered_keys:
-        bucket = buckets[key]
+    for key, raw_label, bucket in _group_by_category(top_level_comp, cat_meta, "Category"):
         group_rows = ""
         task_count = 0
         for r in bucket:
@@ -2027,10 +1984,10 @@ def completed_tasks_page():
             for child in sub_of.get(r.get("ID", ""), []):
                 group_rows += make_comp_row(child, indent=True)
                 task_count += 1
-        label = html_escape(cat_meta[key]["description"]) if key else "None"
+        label = html_escape(raw_label)
         groups_html += (
             f'<tbody class="cat-group">'
-            f'<tr class="cat-header" onclick="toggleCategory(this)">'
+            f'<tr class="cat-header" onclick="toggleCatGroup(this)">'
             f'<td colspan="7"><span class="cat-caret">▼</span> {label} '
             f'<span class="cat-count">{task_count}</span></td></tr>'
             f'{group_rows}'
@@ -2061,11 +2018,11 @@ def completed_tasks_page():
     </div>
   </main>
   <script>
-  function toggleCategory(headerTr) {{
-      const tbody = headerTr.parentElement;
-      const caret = headerTr.querySelector('.cat-caret');
-      tbody.classList.toggle('collapsed');
-      caret.textContent = tbody.classList.contains('collapsed') ? '▶' : '▼';
+  function toggleCatGroup(headerEl) {{
+      const parent = headerEl.parentElement;
+      const caret = headerEl.querySelector('.cat-caret');
+      parent.classList.toggle('collapsed');
+      caret.textContent = parent.classList.contains('collapsed') ? '▶' : '▼';
   }}
   </script>
 </body>
@@ -2166,12 +2123,6 @@ def agenda_page():
     _, active, _ = _parse_active(read("tasks.md"))
     today = date_cls.today()
     window_end = today + timedelta(days=13)
-
-    def priority_badge(p):
-        if not p or p == "None":
-            return ""
-        cls = {"High": "high", "Medium": "medium", "Low": "low"}.get(p, "")
-        return f'<span class="badge {cls}">{p}</span>'
 
     priority_rank = {"High": 0, "Medium": 1, "Low": 2}
 
@@ -2277,12 +2228,6 @@ def review_page():
     monday = today - timedelta(days=today.weekday())
 
     cat_desc = {c["code"]: c["description"] for c in load_categories() if c["code"]}
-
-    def priority_badge(p):
-        if not p or p == "None":
-            return ""
-        cls = {"High": "high", "Medium": "medium", "Low": "low"}.get(p, "")
-        return f'<span class="badge {cls}">{p}</span>'
 
     # Section 1: Completions this week
     week_completions = []
