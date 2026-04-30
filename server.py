@@ -1724,7 +1724,6 @@ tr.cat-header:hover td { background: #1e4a7a; color: #e0f2fe; }
 .cat-caret { display: inline-block; width: 0.9rem; color: #7dd3fc; font-size: 0.7rem; }
 .cat-count { color: #64748b; font-size: 0.7rem; margin-left: 0.35rem; font-weight: 500; text-transform: none; }
 tbody.cat-group.collapsed tr:not(.cat-header) { display: none; }
-.idea-cat-group { margin-bottom: 0.6rem; }
 .idea-cat-group h3.cat-header {
     background: #0f2942;
     color: #7dd3fc;
@@ -1733,6 +1732,7 @@ tbody.cat-group.collapsed tr:not(.cat-header) { display: none; }
     text-transform: uppercase;
     letter-spacing: 0.06em;
     padding: 0.4rem 0.6rem;
+    margin: 0;
     cursor: pointer;
     user-select: none;
     border-bottom: 1px solid #1e4a7a;
