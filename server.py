@@ -174,7 +174,7 @@ def md_to_html(text):
 # ---------------------------------------------------------------------------
 
 PRIORITY_ORDER = {"High": 0, "Medium": 1, "Low": 2, "None": 3}
-VALID_PRIORITIES = {"High", "Medium", "Low", "None"}
+VALID_PRIORITIES = set(PRIORITY_ORDER)
 VALID_RECUR = {"", "daily", "weekly", "monthly", "yearly"}
 
 
@@ -632,7 +632,6 @@ def complete_task(task_num: int):
             next_id = str(_next_task_id(remaining + [found], completed_section))
             next_status = _status_for(next_due)
             remaining.append({
-                "#": "",
                 "Status": next_status,
                 "Priority": found.get("Priority", "Medium"),
                 "Due Date": next_due,
@@ -708,7 +707,6 @@ def reopen_completed_task(task_num: int):
     due_raw = found.get("Due Date", "")
     status = _status_for(due_raw) if due_raw else "&nbsp;"
     new_row = {
-        "#": str(len(rows) + 1),
         "Status": status,
         "Priority": found.get("Priority", "Medium"),
         "Due Date": due_raw,
@@ -829,7 +827,7 @@ def add_task(due_date: str, task: str, notes: str, priority: str = "Medium", par
         parent = ""
 
     new_id = str(_next_task_id(rows, completed_section))
-    rows.append({"#": "", "Status": _status_for(due_date), "Priority": priority, "Due Date": due_date, "Task": task, "Notes": notes, "Category": category, "Parent": parent, "ID": new_id, "Recur": recur})
+    rows.append({"Status": _status_for(due_date), "Priority": priority, "Due Date": due_date, "Task": task, "Notes": notes, "Category": category, "Parent": parent, "ID": new_id, "Recur": recur})
     _save_active(header_lines, rows, completed_section)
 
 
@@ -2502,6 +2500,16 @@ def categories_page():
 # HTTP handler
 # ---------------------------------------------------------------------------
 
+PAGE_ROUTES = {
+    "/": dashboard_page,
+    "/completed": completed_tasks_page,
+    "/review": review_page,
+    "/agenda": agenda_page,
+    "/categories": categories_page,
+    "/notes": notes_page,
+}
+
+
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split("?")[0]
@@ -2526,18 +2534,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
-        if path == "/":
-            body = dashboard_page().encode()
-        elif path == "/completed":
-            body = completed_tasks_page().encode()
-        elif path == "/review":
-            body = review_page().encode()
-        elif path == "/agenda":
-            body = agenda_page().encode()
-        elif path == "/categories":
-            body = categories_page().encode()
-        elif path == "/notes":
-            body = notes_page().encode()
+        page_fn = PAGE_ROUTES.get(path)
+        if page_fn is not None:
+            body = page_fn().encode()
         elif path.startswith("/cheatsheet/"):
             filename = path[len("/cheatsheet/"):]
             page = cheatsheet_page(filename)
