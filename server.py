@@ -360,28 +360,31 @@ def _save_active(header_lines, rows, completed_section: str) -> None:
 
 
 def _parse_ideas(content: str):
-    """Return list of dicts: id, date, desc, parent, notes."""
+    """Return list of dicts: id, date, desc, parent, notes, category."""
     _, blocks = _idea_blocks(content)
     ideas = []
     for heading, body in blocks:
         m = re.match(r"^## (\d+) \| (\d{4}-\d{2}-\d{2}) \| (.+?)(?:\s*\|\s*(\d*))?$", heading)
         if m:
             notes = ""
+            category = ""
             for line in body:
                 if line.startswith("notes: "):
                     notes = line[7:]
-                    break
+                elif line.startswith("category: "):
+                    category = line[10:].strip()
             ideas.append({
                 "id": m.group(1),
                 "date": m.group(2),
                 "desc": m.group(3).strip(),
                 "parent": m.group(4) or "",
                 "notes": notes,
+                "category": category,
             })
     return ideas
 
 
-def add_idea(description: str, parent: str = "", notes: str = ""):
+def add_idea(description: str, parent: str = "", notes: str = "", category: str = ""):
     """Append a new idea to ideas.md with the next sequential ID."""
     path = BASE / "ideas.md"
     content = path.read_text()
@@ -391,10 +394,15 @@ def add_idea(description: str, parent: str = "", notes: str = ""):
     valid_ids = {m for m in ids}
     if parent not in valid_ids:
         parent = ""
+    valid_cats = {c["code"] for c in load_categories() if c["code"]}
+    if category and category not in valid_cats:
+        category = ""
     today = date_cls.today().isoformat()
     block = f"\n\n## {next_id} | {today} | {description} | {parent}\n"
     if notes:
         block += f"notes: {notes}\n"
+    if category:
+        block += f"category: {category}\n"
     content = content.rstrip("\n") + block
     path.write_text(content)
 
@@ -425,8 +433,8 @@ def _reassemble_ideas(preamble, blocks) -> str:
     return "\n\n".join(p for p in parts if p.strip()) + "\n"
 
 
-def edit_idea(idea_id: str, description: str, notes: str = "", parent: str = ""):
-    """Update description, notes, and parent of an existing idea, preserving date and sub-points."""
+def edit_idea(idea_id: str, description: str, notes: str = "", parent: str = "", category: str = ""):
+    """Update description, notes, parent, and category of an existing idea, preserving date and sub-points."""
     path = BASE / "ideas.md"
     preamble, blocks = _idea_blocks(path.read_text())
 
@@ -451,15 +459,23 @@ def edit_idea(idea_id: str, description: str, notes: str = "", parent: str = "")
         if parent == idea_id or parent in descendants or parent not in valid_ids:
             parent = ""
 
+    valid_cats = {c["code"] for c in load_categories() if c["code"]}
+    if category and category not in valid_cats:
+        category = ""
+
     new_blocks = []
     for heading, body in blocks:
         m = heading_re.match(heading)
         if m and m.group(1) == idea_id:
             parent_seg = f" | {parent}" if parent else " | "
             heading = f"## {m.group(1)} | {m.group(2)} | {description}{parent_seg}"
-            body = [l for l in body if not l.startswith("notes: ")]
+            body = [l for l in body if not l.startswith("notes: ") and not l.startswith("category: ")]
+            prepended = []
             if notes:
-                body = [f"notes: {notes}"] + body
+                prepended.append(f"notes: {notes}")
+            if category:
+                prepended.append(f"category: {category}")
+            body = prepended + body
         new_blocks.append((heading, body))
     path.write_text(_reassemble_ideas(preamble, new_blocks))
 
@@ -1184,10 +1200,12 @@ def ideas_html():
     by_id = {r["id"]: r for r in ideas}
     today_str = date_cls.today().isoformat()
     cats = load_categories()
-    promote_cat_opts = '<option value="">— No Category —</option>'
+    cat_meta = {c["code"]: c for c in cats if c["code"]}
+    cat_opts = '<option value="">— No Category —</option>'
     for c in cats:
         if c["code"]:
-            promote_cat_opts += f'<option value="{html_escape(c["code"])}">{html_escape(c["description"])}</option>'
+            cat_opts += f'<option value="{html_escape(c["code"])}">{html_escape(c["description"])}</option>'
+    promote_cat_opts = cat_opts
 
     def make_item(r, indent=False):
         id_ = html_escape(r["id"])
@@ -1197,6 +1215,7 @@ def ideas_html():
         desc_js = js_escape(r["desc"])
         notes_js = js_escape(r.get("notes", ""))
         parent_js = html_escape(r.get("parent", ""))
+        category_js = html_escape(r.get("category", ""))
         prefix = '<span class="subtask-indent">↳</span>' if indent else ""
         li_cls = ' class="sub-idea"' if indent else ""
         notes_html = f'<span class="idea-notes">{notes}</span>' if notes else ""
@@ -1208,8 +1227,8 @@ def ideas_html():
             f'{notes_html}'
             f'<span class="idea-date">{date}</span>'
             f'<span class="idea-actions">'
-            f'<button class="edit-btn" onclick="openPromoteIdea(\'{id_}\',\'{desc_js}\')" title="Convert to task">➜</button>'
-            f'<button class="edit-btn" onclick="openEditIdea(\'{id_}\',\'{desc_js}\',\'{notes_js}\',\'{parent_js}\')" title="Edit idea">✎</button>'
+            f'<button class="edit-btn" onclick="openPromoteIdea(\'{id_}\',\'{desc_js}\',\'{category_js}\')" title="Convert to task">➜</button>'
+            f'<button class="edit-btn" onclick="openEditIdea(\'{id_}\',\'{desc_js}\',\'{notes_js}\',\'{parent_js}\',\'{category_js}\')" title="Edit idea">✎</button>'
             f'<form method="POST" action="/delete-idea" style="display:inline">'
             f'<input type="hidden" name="id" value="{id_}">'
             f'<button type="submit" class="del-btn" title="Delete idea" onclick="return confirm(\'Delete this idea permanently?\')">✕</button>'
@@ -1227,11 +1246,40 @@ def ideas_html():
         else:
             top_level.append(r)
 
-    items = ""
+    buckets = {}
     for r in top_level:
-        items += make_item(r)
-        for child in sub_of.get(r["id"], []):
-            items += make_item(child, indent=True)
+        code = r.get("category", "").strip()
+        key = code if code in cat_meta else ""
+        buckets.setdefault(key, []).append(r)
+
+    def group_sort_key(code):
+        meta = cat_meta.get(code)
+        return (meta["sort_order"], meta["description"].lower())
+
+    ordered_keys = sorted([k for k in buckets if k != ""], key=group_sort_key)
+    if "" in buckets:
+        ordered_keys.append("")
+
+    groups_html = ""
+    for key in ordered_keys:
+        bucket = buckets[key]
+        group_items = ""
+        idea_count = 0
+        for r in bucket:
+            group_items += make_item(r)
+            idea_count += 1
+            for child in sub_of.get(r["id"], []):
+                group_items += make_item(child, indent=True)
+                idea_count += 1
+        label = html_escape(cat_meta[key]["description"]) if key else "None"
+        groups_html += (
+            f'<section class="idea-cat-group">'
+            f'<h3 class="cat-header" onclick="toggleIdeaCategory(this)">'
+            f'<span class="cat-caret">▼</span> {label} '
+            f'<span class="cat-count">{idea_count}</span></h3>'
+            f'<ul class="ideas">{group_items}</ul>'
+            f'</section>'
+        )
 
     parent_opts = '<option value="">None (top-level idea)</option>'
     for r in ideas:
@@ -1243,7 +1291,7 @@ def ideas_html():
         <h2>Ideas <span class="count">{len(ideas)}</span>
             <button class="add-btn" onclick="document.getElementById('idea-modal').classList.add('open')">+ Add</button>
         </h2>
-        <ul class="ideas">{items}</ul>
+        {groups_html}
     </section>
 
     <div id="idea-modal" class="modal-overlay" onclick="if(event.target===this)this.classList.remove('open')">
@@ -1255,6 +1303,9 @@ def ideas_html():
                 </label>
                 <label>Notes
                     <input type="text" name="notes" placeholder="Optional notes">
+                </label>
+                <label>Category
+                    <select name="category">{cat_opts}</select>
                 </label>
                 <label>Parent Idea
                     <select name="parent">{parent_opts}</select>
@@ -1277,6 +1328,9 @@ def ideas_html():
                 </label>
                 <label>Notes
                     <input type="text" name="notes" id="edit-idea-notes" placeholder="Optional notes">
+                </label>
+                <label>Category
+                    <select name="category" id="edit-idea-category">{cat_opts}</select>
                 </label>
                 <label>Parent Idea
                     <select name="parent" id="edit-idea-parent">{parent_opts}</select>
@@ -1320,20 +1374,27 @@ def ideas_html():
     </div>
 
     <script>
-    function openEditIdea(id, desc, notes, parent) {{
+    function openEditIdea(id, desc, notes, parent, category) {{
         document.getElementById('edit-idea-id').value = id;
         document.getElementById('edit-idea-desc').value = desc;
         document.getElementById('edit-idea-notes').value = notes || '';
         document.getElementById('edit-idea-parent').value = parent || '';
+        document.getElementById('edit-idea-category').value = category || '';
         document.getElementById('idea-edit-modal').classList.add('open');
     }}
-    function openPromoteIdea(id, desc) {{
+    function openPromoteIdea(id, desc, category) {{
         document.getElementById('promote-idea-id').value = id;
         document.getElementById('promote-idea-desc').value = desc;
         document.getElementById('promote-idea-due').value = '{today_str}';
         document.getElementById('promote-idea-priority').value = 'None';
-        document.getElementById('promote-idea-category').value = '';
+        document.getElementById('promote-idea-category').value = category || '';
         document.getElementById('idea-promote-modal').classList.add('open');
+    }}
+    function toggleIdeaCategory(headerEl) {{
+        const section = headerEl.parentElement;
+        const caret = headerEl.querySelector('.cat-caret');
+        section.classList.toggle('collapsed');
+        caret.textContent = section.classList.contains('collapsed') ? '▶' : '▼';
     }}
     </script>"""
 
@@ -1663,6 +1724,21 @@ tr.cat-header:hover td { background: #1e4a7a; color: #e0f2fe; }
 .cat-caret { display: inline-block; width: 0.9rem; color: #7dd3fc; font-size: 0.7rem; }
 .cat-count { color: #64748b; font-size: 0.7rem; margin-left: 0.35rem; font-weight: 500; text-transform: none; }
 tbody.cat-group.collapsed tr:not(.cat-header) { display: none; }
+.idea-cat-group { margin-bottom: 0.6rem; }
+.idea-cat-group h3.cat-header {
+    background: #0f2942;
+    color: #7dd3fc;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.4rem 0.6rem;
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid #1e4a7a;
+}
+.idea-cat-group h3.cat-header:hover { background: #1e4a7a; color: #e0f2fe; }
+.idea-cat-group.collapsed > ul { display: none; }
 .agenda-heading {
     margin: 1.25rem 0 0.4rem;
     font-size: 0.95rem;
@@ -2601,16 +2677,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             description = get("description")
             parent = get("parent")
             notes = get("notes")
+            category = get("category", "")
             if description:
-                add_idea(description, parent, notes)
+                add_idea(description, parent, notes, category)
 
         elif path == "/edit-idea":
             idea_id = get("id")
             description = get("description")
             notes = get("notes")
             parent = get("parent")
+            category = get("category", "")
             if idea_id and description:
-                edit_idea(idea_id, description, notes, parent)
+                edit_idea(idea_id, description, notes, parent, category)
 
         elif path == "/delete-idea":
             idea_id = get("id")

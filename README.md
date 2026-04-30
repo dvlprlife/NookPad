@@ -131,13 +131,16 @@ Each panel has a **+ Add** button in the header to add new entries without editi
 
 ### Ideas
 - Click **+ Add** in the Ideas panel to open the form
-- Fields: Idea description, Notes (optional), Parent Idea (optional)
+- Fields: Idea description, Notes (optional), Category (optional), Parent Idea (optional)
 - Select a **Parent Idea** to create a sub-idea — it will appear indented (↳) directly below its parent
 - The ID and date are assigned automatically
 - Notes appear below the idea title in a smaller, muted font
+- Ideas are grouped by **Category** in the panel using the same ordering as the Tasks panel — groups sort by each category's Sort Order (ascending), ties broken alphabetically by description; ideas without a category appear under a **None** group that always sorts last
+- Sub-ideas stay under their parent's category group regardless of their own category
+- Click a category header to collapse or expand that group's ideas; all groups start expanded on page load
 - Hover over any idea to reveal the **➜** (convert to task), **✎** (edit), and **✕** (delete) buttons
-- **➜** opens a modal that creates a new active task from the idea — the description becomes the task name and the notes carry over. You pick the due date (defaults to today), priority (defaults to None), and category at promotion time. The idea itself stays in `ideas.md` as provenance. Backed by the `/idea-to-task` POST endpoint (params `idea_id`, `due_date`, `priority`, `category`)
-- **✎** opens an edit modal pre-filled with the current description and notes
+- **➜** opens a modal that creates a new active task from the idea — the description becomes the task name and the notes carry over. The Category selector is pre-filled with the idea's category (if any); you can override before submitting. You pick the due date (defaults to today), priority (defaults to None), and category at promotion time. The idea itself stays in `ideas.md` as provenance. Backed by the `/idea-to-task` POST endpoint (params `idea_id`, `due_date`, `priority`, `category`)
+- **✎** opens an edit modal pre-filled with the current description, notes, category, and parent. Setting Category back to **— No Category —** removes the category line from `ideas.md` entirely
 - **✕** permanently deletes the idea and any of its sub-ideas — a confirmation dialog appears first
 
 ### Notes

@@ -63,11 +63,14 @@
 - Format: `## {id} | {YYYY-MM-DD} | {description} | {parent_id}`
 - `{parent_id}` is the ID of the parent idea for sub-ideas, or blank for top-level ideas.
 - Notes are stored as a `notes: {text}` line in the block body, before any bullet sub-points.
-- Sub-points are optional bullet lists beneath the heading (after the notes line if present).
+- Category is stored as an optional `category: {CODE}` line in the block body. The order of `notes:` / `category:` lines does not matter; either may appear first. Both must come before any bullet sub-points.
+- The category code must match an entry in `categories.md`; unknown codes are silently dropped on add/edit. An idea with no category line displays under the **None** group on the dashboard.
+- Sub-points are optional bullet lists beneath the heading (after any metadata lines).
 - IDs increment sequentially, never reuse or delete an idea.
 - Date added uses format `YYYY-MM-DD`.
-- Sub-ideas display indented (↳) under their parent in the dashboard.
-- Ideas can be edited (description and notes; ID and date are preserved) or deleted via the dashboard.
+- Sub-ideas display indented (↳) under their parent in the dashboard. Sub-ideas stay under their parent's category group regardless of their own category.
+- Ideas can be edited (description, notes, category, and parent; ID and date are preserved) or deleted via the dashboard.
+- Setting Category back to **— No Category —** in the edit modal removes the `category:` line from `ideas.md` entirely.
 - Deleting an idea also deletes its sub-ideas (cascade). IDs of deleted ideas are never reused.
 
 ## Notes (`notes.md`)
