@@ -1885,7 +1885,6 @@ def dashboard_page():
   <title>NookPad</title>
   <link rel="stylesheet" href="/style.css">
   {FAVICON_LINK}
-  <meta http-equiv="refresh" content="30">
 </head>
 <body>
   <header>
@@ -1898,6 +1897,18 @@ def dashboard_page():
     {ideas_html()}
     {shopping_html()}
   </div>
+  <script>
+    (function() {{
+      function tick() {{
+        if (document.querySelector('.modal-overlay.open')) {{
+          setTimeout(tick, 2000);
+        }} else {{
+          window.location.reload();
+        }}
+      }}
+      setTimeout(tick, 30000);
+    }})();
+  </script>
 </body>
 </html>"""
 
